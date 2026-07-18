@@ -5,6 +5,7 @@ import 'learning_path_screen.dart'; // Import learning path screen
 import 'practice_session_screen.dart'; // Import PracticeSessionScreen widget
 import 'progress_screen.dart'; // Import ProgressScreen widget
 import 'ranking_screen.dart'; // Import RankingScreen widget
+import 'achievements_screen.dart'; // Import AchievementsScreen widget
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({super.key});
@@ -729,7 +730,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         );
                       },
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 25),
                     _buildMiniActionButton(
                       "Ranking",
                       LucideIcons.trophy,
@@ -743,11 +744,19 @@ class _UserDashboardState extends State<UserDashboard> {
                         );
                       },
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 25),
                     _buildMiniActionButton(
                       "Badges",
                       LucideIcons.award,
                       const Color(0xFFA855F7),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AchievementsScreen(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
