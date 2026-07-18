@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'learning_path_screen.dart';
 
 class LeaderboardUser {
   final int rank;
@@ -207,9 +208,27 @@ class _RankingScreenState extends State<RankingScreen> {
   // Header design
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(
+        horizontal: 4.0,
+        vertical: 12.0,
+      ), // Tweaked padding slightly for button alignment
       child: Row(
         children: [
+          // Back arrow navigation button
+          IconButton(
+            icon: const Icon(
+              LucideIcons
+                  .arrow_left, // Fits right in with your Lucide icons package
+              color: Colors.white,
+              size: 22,
+            ),
+            onPressed: () {
+              Navigator.of(
+                context,
+              ).pop(); // Navigates back to the previous screen
+            },
+          ),
+          const SizedBox(width: 4),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -227,8 +246,9 @@ class _RankingScreenState extends State<RankingScreen> {
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Text(
+            children: [
+              // Removed 'const' from here to fix nested linter errors
+              const Text(
                 "Leaderboard",
                 style: TextStyle(
                   color: Colors.white,
@@ -236,8 +256,8 @@ class _RankingScreenState extends State<RankingScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
+              const SizedBox(height: 2),
+              const Text(
                 "Compete with fellow learners",
                 style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
               ),
@@ -732,12 +752,17 @@ class _RankingScreenState extends State<RankingScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // Pink Banner Butto
+          // Pink Banner Button
           Material(
             color: Colors.transparent,
             child: InkWell(
               onTap: () {
-                // 1. Show the tuning warning modal sheet first to verify their guitar is tuned!
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const LearningPathScreen(),
+                  ),
+                );
               },
               borderRadius: BorderRadius.circular(8),
               child: Ink(
