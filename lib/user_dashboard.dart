@@ -1,3 +1,4 @@
+import 'package:chordsense/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'tuner_screen.dart'; // ImportTunerScreen widget
@@ -6,6 +7,7 @@ import 'practice_session_screen.dart'; // Import PracticeSessionScreen widget
 import 'progress_screen.dart'; // Import ProgressScreen widget
 import 'ranking_screen.dart'; // Import RankingScreen widget
 import 'achievements_screen.dart'; // Import AchievementsScreen widget
+import 'song_library_screen.dart'; // Import SongLibraryScreen widget
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({super.key});
@@ -58,7 +60,7 @@ class _UserDashboardState extends State<UserDashboard> {
       case 3:
         return const RankingScreen(); // Your ranking screen
       case 4:
-        return _buildPlaceholderScreen("Profile Screen", LucideIcons.user);
+        return const ProfileScreen();
       default:
         return _buildHomeDashboard();
     }
@@ -783,6 +785,14 @@ class _UserDashboardState extends State<UserDashboard> {
                   "Learn Filipino songs",
                   LucideIcons.music,
                   const Color(0xFFEAB308),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SongLibraryScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 28),
 
