@@ -66,32 +66,6 @@ class _UserDashboardState extends State<UserDashboard> {
     }
   }
 
-  // A clean placeholder screen to display when on other tabs
-  Widget _buildPlaceholderScreen(String title, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: const Color(0xFF64748B)),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            "Under Construction 🛠️",
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
   // Requires the user to complete the guitar tuner setup before starting practice.
   void _showTuningModal(BuildContext context) {
     showModalBottomSheet(
