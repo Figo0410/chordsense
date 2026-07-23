@@ -4,6 +4,9 @@ import 'login_screen.dart'; // Imports your custom login design
 //User after login
 import 'user_dashboard.dart';
 
+//Admin after login
+import 'admin_screen.dart';
+
 void main() {
   runApp(const ChordSenseApp());
 }
@@ -30,10 +33,7 @@ class ChordSenseApp extends StatelessWidget {
       // These are the "roadmaps" for when you click Login, Register, etc.
       routes: {
         '/': (context) => const LoginScreen(),
-        '/admin': (context) => const DummyDashboard(
-          title: 'Admin Dashboard',
-          color: Color(0xFF9333EA),
-        ), // Purple theme
+        '/admin': (context) => const AdminDashboardScreen(), // Purple theme
         '/user': (context) => const UserDashboard(),
         // Cyan theme
         '/register': (context) => const DummyDashboard(
