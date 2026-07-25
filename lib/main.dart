@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'login_screen.dart'; // Imports your custom login design
 
-//User after login
+// User after login
 import 'user_dashboard.dart';
 
-//Admin after login
+// Admin after login
 import 'admin_screen.dart';
 
 void main() {
@@ -27,15 +27,16 @@ class ChordSenseApp extends StatelessWidget {
         primaryColor: const Color(0xFF06B6D4), // cyan-500
       ),
 
-      // Your app will start on the LoginScreen
+      // Your app starts on the LoginScreen
       initialRoute: '/',
 
-      // These are the "roadmaps" for when you click Login, Register, etc.
+      // Route definitions
       routes: {
         '/': (context) => const LoginScreen(),
-        '/admin': (context) => const AdminDashboardScreen(), // Purple theme
+        // Check if your widget inside admin_screen.dart is named AdminScreen or AdminDashboardScreen
+        '/admin': (context) => const AdminDashboardScreen(),
         '/user': (context) => const UserDashboard(),
-        // Cyan theme
+
         '/register': (context) => const DummyDashboard(
           title: 'Registration Screen',
           color: Color(0xFFA855F7),
@@ -49,7 +50,7 @@ class ChordSenseApp extends StatelessWidget {
   }
 }
 
-// --- A Simple Placeholder Screen so your buttons don't crash the app ---
+// --- Placeholder Screen ---
 class DummyDashboard extends StatelessWidget {
   final String title;
   final Color color;

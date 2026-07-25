@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:animate_do/animate_do.dart';
+import './services/api.service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,16 +14,55 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _handleLogin() {
+  // 1. Loading state flag
+  bool _isLoading = false;
+
+  // 2. Updated async handle login using real API
+  // Inside _LoginScreenState in login_screen.dart
+
+  Future<void> _handleLogin() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
 
-    if (username.toLowerCase() == 'admin' && password == 'admin123') {
-      // Role-based route for admin
-      Navigator.pushReplacementNamed(context, '/admin');
-    } else if (username.isNotEmpty && password.isNotEmpty) {
-      // Role-based route for standard user
-      Navigator.pushReplacementNamed(context, '/user');
+    if (username.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please fill in both fields'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      // 1. Authenticate with backend
+      final userData = await ApiService.login(username, password);
+      final String role =
+          userData['role'] ?? 'user'; // Defaults to 'user' if not specified
+
+      if (!mounted) return;
+
+      // 2. Direct user based on role
+      if (role == 'admin') {
+        Navigator.pushReplacementNamed(context, '/admin');
+      } else {
+        Navigator.pushReplacementNamed(context, '/user');
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -101,12 +141,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // --- LOGO & TITLE SECTION (motion.div initial/animate clone) ---
+                    // --- LOGO & TITLE SECTION ---
                     ZoomIn(
                       duration: const Duration(milliseconds: 500),
                       child: Column(
                         children: [
-                          // App Logo Icon with Glow
                           Container(
                             width: 80,
                             height: 80,
@@ -116,16 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 BoxShadow(
                                   color: const Color(
                                     0xFF9333EA,
-                                  ).withOpacity(0.5), // purple-500/50
+                                  ).withOpacity(0.5),
                                   blurRadius: 15,
                                   offset: const Offset(0, 4),
                                 ),
                               ],
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF06B6D4),
-                                  Color(0xFF9333EA),
-                                ], // cyan-500 to purple-600
+                                colors: [Color(0xFF06B6D4), Color(0xFF9333EA)],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -137,31 +173,25 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           const SizedBox(height: 16),
-                          // App Name
                           ShaderMask(
                             shaderCallback: (bounds) => const LinearGradient(
-                              colors: [
-                                Color(0xFF22D3EE),
-                                Color(0xFFA855F7),
-                              ], // cyan-400 to purple-500
+                              colors: [Color(0xFF22D3EE), Color(0xFFA855F7)],
                             ).createShader(bounds),
                             child: const Text(
                               'ChordSense',
                               style: TextStyle(
                                 fontSize: 38,
                                 fontWeight: FontWeight.bold,
-                                color: Colors
-                                    .white, // Required for ShaderMask to overlay
+                                color: Colors.white,
                               ),
                             ),
                           ),
                           const SizedBox(height: 8),
-                          // Subtitle
                           const Text(
                             'Interactive Guitar Learning with Real-Time Feedback',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Color(0xFF94A3B8), // slate-400
+                              color: Color(0xFF94A3B8),
                               fontSize: 14,
                             ),
                           ),
@@ -171,7 +201,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     const SizedBox(height: 32),
 
-                    // --- LOGIN CARD SECTION (motion.div fadeUp clone) ---
+                    // --- LOGIN CARD SECTION ---
                     FadeInUp(
                       delay: const Duration(milliseconds: 200),
                       duration: const Duration(milliseconds: 500),
@@ -179,12 +209,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         constraints: const BoxConstraints(maxWidth: 400),
                         padding: const EdgeInsets.all(28),
                         decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF0F172A,
-                          ).withOpacity(0.5), // slate-900/50
+                          color: const Color(0xFF0F172A).withOpacity(0.5),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            color: const Color(0xFF1E293B), // slate-800
+                            color: const Color(0xFF1E293B),
                             width: 1,
                           ),
                           boxShadow: [
@@ -217,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: TextStyle(
                                 color: Color(0xFFCBD5E1),
                                 fontSize: 14,
-                              ), // slate-300
+                              ),
                             ),
                             const SizedBox(height: 8),
                             TextField(
@@ -250,9 +278,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(height: 24),
 
-                            // Login Button
+                            // 3. Login Button with Loading Indicator
                             GestureDetector(
-                              onTap: _handleLogin,
+                              onTap: _isLoading ? null : _handleLogin,
                               child: Container(
                                 width: double.infinity,
                                 height: 50,
@@ -262,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     BoxShadow(
                                       color: const Color(
                                         0xFF9333EA,
-                                      ).withOpacity(0.3), // purple-500/30
+                                      ).withOpacity(0.3),
                                       blurRadius: 10,
                                       offset: const Offset(0, 4),
                                     ),
@@ -271,18 +299,27 @@ class _LoginScreenState extends State<LoginScreen> {
                                     colors: [
                                       Color(0xFF06B6D4),
                                       Color(0xFF9333EA),
-                                    ], // cyan-500 to purple-600
+                                    ],
                                   ),
                                 ),
-                                child: const Center(
-                                  child: Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
+                                child: Center(
+                                  child: _isLoading
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.5,
+                                          ),
+                                        )
+                                      : const Text(
+                                          'Login',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ),
@@ -305,7 +342,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   style: TextStyle(
                                     color: Color(0xFF22D3EE),
                                     fontSize: 14,
-                                  ), // cyan-400
+                                  ),
                                 ),
                               ),
                             ),
@@ -333,7 +370,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                       color: Color(0xFFC084FC),
                                       fontWeight: FontWeight.bold,
                                       fontSize: 14,
-                                    ), // purple-400
+                                    ),
                                   ),
                                 ),
                               ],
@@ -354,25 +391,20 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // Quick Input Decoration helper to prevent design code duplication
   InputDecoration _buildInputDecoration({
     required String hintText,
     required IconData icon,
   }) {
     return InputDecoration(
-      prefixIcon: Icon(
-        icon,
-        color: const Color(0xFF64748B),
-        size: 20,
-      ), // slate-500
+      prefixIcon: Icon(icon, color: const Color(0xFF64748B), size: 20),
       hintText: hintText,
       hintStyle: const TextStyle(color: Color(0xFF64748B)),
-      fillColor: const Color(0xFF1E293B).withOpacity(0.5), // slate-800/50
+      fillColor: const Color(0xFF1E293B).withOpacity(0.5),
       filled: true,
       contentPadding: const EdgeInsets.symmetric(vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: Color(0xFF334155)), // slate-700
+        borderSide: const BorderSide(color: Color(0xFF334155)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
@@ -380,10 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(
-          color: Color(0xFF06B6D4),
-          width: 1.5,
-        ), // focused cyan highlight
+        borderSide: const BorderSide(color: Color(0xFF06B6D4), width: 1.5),
       ),
     );
   }

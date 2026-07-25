@@ -2,7 +2,6 @@ const dns = require('dns');
 dns.setDefaultResultOrder('ipv4first'); // Standardizes IP lookup
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
-
 // server.js
 const express = require('express');
 const cors = require('cors');
@@ -19,7 +18,11 @@ connectDB();
 app.use(cors()); // Allows Flutter app to make cross-origin requests
 app.use(express.json()); // Parses incoming JSON payloads
 
+// --- ROUTES ---
 app.use('/api/songs', require('./routes/songRoutes'));
+
+// ADD THIS LINE: Connects your login & authentication endpoints
+app.use('/api/auth', require('./routes/authRoutes')); 
 
 // 3. Test Route
 app.get('/', (req, res) => {
@@ -28,6 +31,6 @@ app.get('/', (req, res) => {
 
 // 4. Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
