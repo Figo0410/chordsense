@@ -17,15 +17,41 @@ class UserDashboard extends StatefulWidget {
 }
 
 class _UserDashboardState extends State<UserDashboard> {
-  //Mock data for the user dashboard.
-  final String userName = 'Joshua';
-  final int currentLevel = 7;
-  final int totalPoints = 3450;
-  final double progressPercent = 0.65; // 65% progress bar
-  final int nextLevelPoints = 4000;
-  final String currentChord = 'A Minor';
-
   int _currentIndex = 0; // Tracks bottom nav state
+
+  // 1. Declare class-level fields (Accessible anywhere in this class)
+  String userName = 'User';
+  int currentLevel = 1;
+  int totalPoints = 0;
+  double progressPercent = 0.0;
+  int nextLevelPoints = 1000;
+  String currentChord = 'C Major';
+
+  int accuracy = 0;
+  int streak = 0;
+  int chordsMastered = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // 2. Extract MongoDB data passed from LoginScreen when screen loads
+    final Map<String, dynamic>? userData =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
+    if (userData != null) {
+      userName = userData['username'] ?? 'User';
+      currentLevel = userData['currentLevel'] ?? 1;
+      totalPoints = userData['totalPoints'] ?? 0;
+      progressPercent = (userData['progressPercent'] ?? 0.0).toDouble();
+      nextLevelPoints = userData['nextLevelPoints'] ?? 1000;
+      currentChord = userData['currentChord'] ?? 'C Major';
+
+      accuracy = userData['accuracy'] ?? 0;
+      streak = userData['streak'] ?? 0;
+      chordsMastered = userData['chordsMastered'] ?? 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +59,7 @@ class _UserDashboardState extends State<UserDashboard> {
       backgroundColor: const Color(0xFF030712), // Deep slate-950 base
       body: Stack(
         children: [
-          // This automatically switches the body content based on selected tab!
+          // 3. Call _buildBodyContent() WITHOUT passing arguments
           _buildBodyContent(),
 
           // --- FIXED CUSTOM BOTTOM NAV BAR ---
@@ -548,8 +574,8 @@ class _UserDashboardState extends State<UserDashboard> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              const Text(
-                                "3450",
+                              Text(
+                                "$totalPoints",
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
@@ -598,21 +624,21 @@ class _UserDashboardState extends State<UserDashboard> {
                   children: [
                     _buildStatCard(
                       "Accuracy",
-                      "87%",
+                      "$accuracy",
                       LucideIcons.target,
                       const Color(0xFF22D3EE),
                     ),
                     const SizedBox(width: 12),
                     _buildStatCard(
                       "Streak",
-                      "12 days",
+                      "$streak",
                       LucideIcons.zap,
                       const Color(0xFFA855F7),
                     ),
                     const SizedBox(width: 12),
                     _buildStatCard(
                       "Chords Mastered",
-                      "23",
+                      "$chordsMastered",
                       LucideIcons.music,
                       const Color(0xFFEC4899),
                     ),
@@ -905,30 +931,34 @@ class _UserDashboardState extends State<UserDashboard> {
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: const [
+                        children: [
+                          // 1. REMOVED 'const' from children: const [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // 2. Real next level calculation
                               Text(
-                                "Reach Level 8",
-                                style: TextStyle(
+                                "Reach Level ${currentLevel + 1}",
+                                style: const TextStyle(
                                   color: Color(0xFF94A3B8),
                                   fontSize: 13,
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              const SizedBox(height: 4),
+                              // 3. Dynamic points needed (Next Level Points minus Total Points)
                               Text(
-                                "550 points needed",
-                                style: TextStyle(
+                                "${nextLevelPoints - totalPoints} points needed",
+                                style: const TextStyle(
                                   color: Color(0xFF475569),
                                   fontSize: 11,
                                 ),
                               ),
                             ],
                           ),
+                          // 4. Real progress percentage calculation
                           Text(
-                            "86%",
-                            style: TextStyle(
+                            "${(progressPercent * 100).toInt()}%",
+                            style: const TextStyle(
                               color: Color(0xFF22D3EE),
                               fontSize: 22,
                               fontWeight: FontWeight.bold,

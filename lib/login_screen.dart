@@ -48,7 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (role == 'admin') {
         Navigator.pushReplacementNamed(context, '/admin');
       } else {
-        Navigator.pushReplacementNamed(context, '/user');
+        Navigator.pushReplacementNamed(context, '/user', arguments: userData);
       }
     } catch (e) {
       if (!mounted) return;
