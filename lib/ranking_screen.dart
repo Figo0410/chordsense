@@ -207,25 +207,28 @@ class _RankingScreenState extends State<RankingScreen> {
 
   // Header design
   Widget _buildHeader() {
+    // 1. Extract the user data from route settings inside the helper
+    final Map<String, dynamic>? userData =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 4.0,
-        vertical: 12.0,
-      ), // Tweaked padding slightly for button alignment
+      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 12.0),
       child: Row(
         children: [
           // Back arrow navigation button
           IconButton(
             icon: const Icon(
-              LucideIcons
-                  .arrow_left, // Fits right in with your Lucide icons package
+              LucideIcons.arrow_left,
               color: Colors.white,
               size: 22,
             ),
             onPressed: () {
-              Navigator.of(
+              // 2. Safe navigation back to user dashboard with arguments
+              Navigator.pushReplacementNamed(
                 context,
-              ).pop(); // Navigates back to the previous screen
+                '/user',
+                arguments: userData,
+              );
             },
           ),
           const SizedBox(width: 4),
@@ -244,11 +247,10 @@ class _RankingScreenState extends State<RankingScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Removed 'const' from here to fix nested linter errors
-              const Text(
+              Text(
                 "Leaderboard",
                 style: TextStyle(
                   color: Colors.white,
@@ -256,8 +258,8 @@ class _RankingScreenState extends State<RankingScreen> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 2),
-              const Text(
+              SizedBox(height: 2),
+              Text(
                 "Compete with fellow learners",
                 style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
               ),
