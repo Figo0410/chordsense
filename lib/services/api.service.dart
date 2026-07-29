@@ -34,4 +34,86 @@ class ApiService {
       );
     }
   }
+
+  // Register a new user
+  static Future<Map<String, dynamic>> register(
+    String username,
+    String email,
+    String password,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/register'), // ✅ FIXED: Added /auth here!
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'email': email,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+
+    // Safe JSON check for error response
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Registration failed');
+    } else {
+      throw Exception(
+        'Server returned status ${response.statusCode}. Check if route /api/auth/register exists on your backend.',
+      );
+    }
+  }
+
+  // Forgot Password
+  static Future<Map<String, dynamic>> forgotPassword(String email) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/forgot-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Failed to send reset link');
+    } else {
+      throw Exception(
+        'Server error (${response.statusCode}). Check backend routes.',
+      );
+    }
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(
+    String email,
+    String resetToken,
+    String newPassword,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/reset-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+        'resetToken': resetToken,
+        'newPassword': newPassword,
+      }),
+    );
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final body = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return body;
+      }
+      throw Exception(body['message'] ?? 'Failed to reset password');
+    } else {
+      throw Exception('Server error (${response.statusCode}).');
+    }
+  }
 }

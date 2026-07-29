@@ -7,6 +7,12 @@ import 'user_dashboard.dart';
 // Admin after login
 import 'admin_screen.dart';
 
+// Registration screen
+import 'register_screen.dart';
+
+// Forgot Password screen
+import 'forgot_password_screen.dart';
+
 void main() {
   runApp(const ChordSenseApp());
 }
@@ -37,14 +43,9 @@ class ChordSenseApp extends StatelessWidget {
         '/admin': (context) => const AdminDashboardScreen(),
         '/user': (context) => const UserDashboard(),
 
-        '/register': (context) => const DummyDashboard(
-          title: 'Registration Screen',
-          color: Color(0xFFA855F7),
-        ),
-        '/forgot-password': (context) => const DummyDashboard(
-          title: 'Reset Password Screen',
-          color: Color(0xFF22D3EE),
-        ),
+        '/register': (context) => const RegisterScreen(),
+
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
       },
     );
   }
