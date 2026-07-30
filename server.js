@@ -7,6 +7,8 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+
+
 const connectDB = require('./config/db.js');
 
 const app = express();
@@ -17,6 +19,8 @@ connectDB();
 // 2. Middleware
 app.use(cors()); // Allows Flutter app to make cross-origin requests
 app.use(express.json()); // Parses incoming JSON payloads
+
+
 
 // --- ROUTES ---
 app.use('/api/songs', require('./routes/songRoutes'));

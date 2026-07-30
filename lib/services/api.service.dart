@@ -1,11 +1,18 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
   // Android Emulator: http://10.0.2.2:5000/api
   // iOS Simulator / Desktop / Web: http://localhost:5000/api
   // Physical Mobile Device: http://<YOUR_COMPUTER_LOCAL_IP>:5000/api
-  static const String baseUrl = 'http://10.0.2.2:5000/api';
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    } else {
+      return 'http://10.0.2.2:5000/api';
+    }
+  }
 
   static Future<Map<String, dynamic>> login(
     String username,
