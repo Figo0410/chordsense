@@ -2,7 +2,7 @@ import 'dart:convert'; // 👈 FIXES: jsonDecode error
 import 'package:http/http.dart' as http; // Needed for http.get
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'package:http/http.dart' as http;
+
 import 'services/api.service.dart';
 
 class BadgeItem {
