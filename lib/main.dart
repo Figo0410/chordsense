@@ -36,15 +36,21 @@ class ChordSenseApp extends StatelessWidget {
       // Your app starts on the LoginScreen
       initialRoute: '/',
 
-      // Route definitions
+      // Route definitions using onGenerateRoute to safely pass arguments
+      onGenerateRoute: (settings) {
+        if (settings.name == '/user') {
+          final userData = settings.arguments as Map<String, dynamic>?;
+          return MaterialPageRoute(
+            builder: (context) => UserDashboard(userData: userData),
+          );
+        }
+        return null;
+      },
+
       routes: {
         '/': (context) => const LoginScreen(),
-        // Check if your widget inside admin_screen.dart is named AdminScreen or AdminDashboardScreen
         '/admin': (context) => const AdminDashboardScreen(),
-        '/user': (context) => const UserDashboard(),
-
         '/register': (context) => const RegisterScreen(),
-
         '/forgot-password': (context) => const ForgotPasswordScreen(),
       },
     );

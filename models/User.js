@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     type: String, 
     required: true, 
     unique: true 
-  }, // 👈 ADD THIS FIELD!
+  },
   password: { 
     type: String, 
     required: true 
@@ -53,6 +53,31 @@ const userSchema = new mongoose.Schema({
     default: 0 
   },
   
+  // Array to track unlocked badge IDs for automatic point rewards
+  unlockedBadges: { 
+    type: [String], 
+    default: [] 
+  },
+
+  // ARRAYS MATCHING FLUTTER UI:
+  completedChords: [{
+    name: String,
+    date: String,
+    accuracy: Number
+  }],
+  learningChords: [{
+    name: String,
+    attempts: Number,
+    progress: Number
+  }],
+  practiceSessions: [{
+    day: String,
+    date: String,
+    duration: String,
+    accuracy: Number,
+    chordsCount: Number
+  }],
+
   // Fields needed for Password Reset:
   resetPasswordToken: String,
   resetPasswordExpires: Date,

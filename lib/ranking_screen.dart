@@ -1,8 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:http/http.dart' as http;
 import 'learning_path_screen.dart';
 
+// --- CONFIGURATION ---
+// Replace this with your Node.js backend URL (e.g. http://10.0.2.2:5000/api for Android emulator)
+const String kBaseApiUrl = 'http://10.0.2.2:5000/api/auth';
+
 class LeaderboardUser {
+  final String id;
   final int rank;
   final String name;
   final int level;
@@ -11,9 +18,10 @@ class LeaderboardUser {
   final int accuracy;
   final int sessions;
   final bool isCurrentUser;
-  final String avatarAsset; // In case you want to use asset images later
+  final String avatarAsset;
 
   LeaderboardUser({
+    required this.id,
     required this.rank,
     required this.name,
     required this.level,
@@ -24,10 +32,43 @@ class LeaderboardUser {
     this.isCurrentUser = false,
     this.avatarAsset = "",
   });
+
+  // Factory constructor to map MongoDB JSON object to LeaderboardUser model
+  factory LeaderboardUser.fromJson(
+    Map<String, dynamic> json,
+    int rank,
+    String currentUserId,
+    String currentUsername,
+  ) {
+    final String userId = json['_id'] ?? json['id'] ?? '';
+    final String name = json['name'] ?? json['username'] ?? '';
+
+    final bool isMe =
+        (currentUserId.isNotEmpty && userId == currentUserId) ||
+        (currentUsername.isNotEmpty &&
+            name.toLowerCase() == currentUsername.toLowerCase());
+
+    return LeaderboardUser(
+      id: userId,
+      rank: rank,
+      name: name,
+      level: (json['level'] ?? 1) as int,
+      xp: (json['xp'] ?? 0) as int,
+      days: (json['days'] ?? 0) as int,
+      accuracy: (json['accuracy'] ?? 0) as int,
+      sessions: (json['sessions'] ?? 0) as int,
+      isCurrentUser: isMe,
+      avatarAsset: json['avatarAsset'] ?? "",
+    );
+  }
 }
 
 class RankingScreen extends StatefulWidget {
-  const RankingScreen({super.key});
+  final String? userId;
+  final String? username;
+  final VoidCallback? onGoToHome;
+
+  const RankingScreen({super.key, this.userId, this.username, this.onGoToHome});
 
   @override
   State<RankingScreen> createState() => _RankingScreenState();
@@ -36,167 +77,250 @@ class RankingScreen extends StatefulWidget {
 class _RankingScreenState extends State<RankingScreen> {
   int _selectedTab = 0; // 0: Top Accuracy, 1: Weekly, 2: Most Improved
 
+  // Query parameter mapped to MongoDB backend sorting fields
+  String get _sortQueryParam {
+    switch (_selectedTab) {
+      case 0:
+        return 'accuracy';
+      case 1:
+        return 'xp';
+      case 2:
+        return 'sessions';
+      default:
+        return 'accuracy';
+    }
+  }
+
+  // API Call to fetch Leaderboard users from MongoDB via Express endpoint
+  // API Call to fetch Leaderboard users
+  Future<List<LeaderboardUser>> _fetchLeaderboard(
+    String currentUserId,
+    String currentUsername,
+    String authToken,
+  ) async {
+    try {
+      final Uri uri = Uri.parse(
+        '$kBaseApiUrl/leaderboard?sortBy=$_sortQueryParam',
+      );
+
+      final response = await http.get(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          if (authToken.isNotEmpty) 'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> body = jsonDecode(response.body);
+
+        // If Weekly returns an empty array from API, handle it safely
+        if (body.isEmpty) return [];
+
+        return body.asMap().entries.map((entry) {
+          final int index = entry.key;
+          final Map<String, dynamic> item = entry.value;
+          return LeaderboardUser.fromJson(
+            item,
+            index + 1,
+            currentUserId,
+            currentUsername,
+          );
+        }).toList();
+      } else {
+        // Fallback empty list instead of throwing an uncaught exception
+        return [];
+      }
+    } catch (e) {
+      debugPrint('Error fetching leaderboard: $e');
+      return []; // Return empty list on network or parsing error
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Exact list of users from your reference design
-    final List<LeaderboardUser> users = [
-      LeaderboardUser(
-        rank: 1,
-        name: "Maria Santos",
-        level: 15,
-        xp: 12500,
-        days: 45,
-        accuracy: 98,
-        sessions: 234,
-      ),
-      LeaderboardUser(
-        rank: 2,
-        name: "Juan Cruz",
-        level: 14,
-        xp: 11200,
-        days: 38,
-        accuracy: 96,
-        sessions: 198,
-      ),
-      LeaderboardUser(
-        rank: 3,
-        name: "Sofia Reyes",
-        level: 13,
-        xp: 10800,
-        days: 32,
-        accuracy: 95,
-        sessions: 187,
-      ),
-      LeaderboardUser(
-        rank: 4,
-        name: "Carlos Luna",
-        level: 12,
-        xp: 9500,
-        days: 28,
-        accuracy: 93,
-        sessions: 165,
-      ),
-      LeaderboardUser(
-        rank: 5,
-        name: "Ana Torres",
-        level: 11,
-        xp: 8900,
-        days: 25,
-        accuracy: 91,
-        sessions: 152,
-      ),
-      LeaderboardUser(
-        rank: 6,
-        name: "Miguel Ramos",
-        level: 11,
-        xp: 8200,
-        days: 22,
-        accuracy: 90,
-        sessions: 143,
-      ),
-      LeaderboardUser(
-        rank: 7,
-        name: "Joshua",
-        level: 7,
-        xp: 3450,
-        days: 12,
-        accuracy: 87,
-        sessions: 78,
-        isCurrentUser: true,
-      ),
-      LeaderboardUser(
-        rank: 8,
-        name: "Lisa Garcia",
-        level: 9,
-        xp: 6500,
-        days: 15,
-        accuracy: 85,
-        sessions: 112,
-      ),
-    ];
+    // Cast arguments explicitly to Map<String, dynamic>?
+    final routeArgs =
+        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    // Podium rankings (Top 1, 2, 3)
-    final top1 = users.firstWhere((u) => u.rank == 1);
-    final top2 = users.firstWhere((u) => u.rank == 2);
-    final top3 = users.firstWhere((u) => u.rank == 3);
+    String currentUserId = widget.userId ?? '';
+    String currentUsername = widget.username ?? '';
+    String authToken = '';
 
+    if (routeArgs != null) {
+      // Check if user data is inside a nested 'user' key, otherwise use top-level routeArgs
+      final Map<String, dynamic> userMap =
+          (routeArgs['user'] is Map<String, dynamic>)
+          ? routeArgs['user'] as Map<String, dynamic>
+          : routeArgs;
+
+      // Check all common key variations for user ID
+      currentUserId =
+          routeArgs['userId']?.toString() ??
+          userMap['_id']?.toString() ??
+          userMap['userId']?.toString() ??
+          userMap['id']?.toString() ??
+          '';
+
+      // Check all common key variations for username
+      currentUsername =
+          routeArgs['username']?.toString() ??
+          userMap['username']?.toString() ??
+          userMap['name']?.toString() ??
+          '';
+
+      // Extract token if present
+      authToken =
+          routeArgs['token']?.toString() ?? userMap['token']?.toString() ?? '';
+    }
+    // DEBUG LOG: Run your app and check your terminal to see what Flutter receives!
+    debugPrint(
+      '--> LEADERBOARD DEBUG: userId="$currentUserId", username="$currentUsername"',
+    );
     return Scaffold(
-      backgroundColor: const Color(0xFF030712), // Deep slate-950 base
+      backgroundColor: const Color(0xFF030712),
       body: SafeArea(
         child: Column(
           children: [
-            // --- HEADER ---
-            _buildHeader(),
+            // Now this will compile without error!
+            _buildHeader(routeArgs),
 
             // --- TAB SELECTOR ---
             _buildTabSelector(),
 
-            // --- SCROLLABLE CONTENT ---
+            // --- REST API DATA FETCHING ---
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+              child: FutureBuilder<List<LeaderboardUser>>(
+                future: _fetchLeaderboard(
+                  currentUserId,
+                  currentUsername,
+                  authToken,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // --- PODIUM COMPONENT ---
-                    const SizedBox(height: 16),
-                    _buildPodium(top1, top2, top3),
-                    const SizedBox(height: 24),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return const Center(
+                      child: Text(
+                        'No data available for this category yet.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
 
-                    // --- ALL RANKINGS TITLE ---
-                    Row(
-                      children: const [
-                        Icon(
-                          LucideIcons.star,
-                          color: Color(0xFF22D3EE),
-                          size: 16,
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0EA5E9),
+                      ),
+                    );
+                  }
+
+                  final users = snapshot.data ?? [];
+                  if (users.isEmpty) {
+                    return const Center(
+                      child: Text(
+                        'No rankings yet for Weekly.',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    );
+                  }
+
+                  // Top 3 Podium Users
+                  final top1 = users.isNotEmpty ? users[0] : null;
+                  final top2 = users.length > 1 ? users[1] : null;
+                  final top3 = users.length > 2 ? users[2] : null;
+
+                  // Find current user data by matching ID OR Username, or fallback if not found
+                  final currentUser = users.firstWhere(
+                    (u) =>
+                        (currentUserId.isNotEmpty && u.id == currentUserId) ||
+                        (currentUsername.isNotEmpty &&
+                            u.name.toLowerCase() ==
+                                currentUsername.toLowerCase()),
+                    orElse: () {
+                      debugPrint(
+                        '--> LEADERBOARD WARNING: Current logged in user not found in list. Defaulting.',
+                      );
+                      return users.first;
+                    },
+                  );
+
+                  // Calculate XP to next rank
+                  int pointsToNext = 0;
+                  if (currentUser.rank > 1 &&
+                      currentUser.rank <= users.length) {
+                    final userAbove = users[currentUser.rank - 2];
+                    pointsToNext = userAbove.xp - currentUser.xp;
+                    if (pointsToNext < 0) pointsToNext = 0;
+                  }
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // --- PODIUM COMPONENT ---
+                        if (top1 != null && top2 != null && top3 != null) ...[
+                          const SizedBox(height: 16),
+                          _buildPodium(top1, top2, top3),
+                          const SizedBox(height: 24),
+                        ],
+
+                        // --- ALL RANKINGS TITLE ---
+                        Row(
+                          children: const [
+                            Icon(
+                              LucideIcons.star,
+                              color: Color(0xFF22D3EE),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "All Rankings",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: 8),
-                        Text(
-                          "All Rankings",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
+                        const SizedBox(height: 12),
+
+                        // --- RANKINGS LIST ---
+                        ...users
+                            .map((user) => _buildLeaderboardTile(user))
+                            .toList(),
+                        const SizedBox(height: 24),
+
+                        // --- YOUR PERFORMANCE SUMMARY ---
+                        Row(
+                          children: const [
+                            Icon(
+                              LucideIcons.trending_up,
+                              color: Color(0xFFA855F7),
+                              size: 16,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              "Your Performance Summary",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
+                        const SizedBox(height: 12),
+                        _buildPerformanceSummary(currentUser, pointsToNext),
+                        const SizedBox(height: 30),
                       ],
                     ),
-                    const SizedBox(height: 12),
-
-                    // --- RANKINGS LIST ---
-                    ...users
-                        .map((user) => _buildLeaderboardTile(user))
-                        .toList(),
-                    const SizedBox(height: 24),
-
-                    // --- YOUR PERFORMANCE SUMMARY ---
-                    Row(
-                      children: const [
-                        Icon(
-                          LucideIcons.trending_up,
-                          color: Color(0xFFA855F7),
-                          size: 16,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          "Your Performance Summary",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildPerformanceSummary(),
-                    const SizedBox(height: 30),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -206,16 +330,11 @@ class _RankingScreenState extends State<RankingScreen> {
   }
 
   // Header design
-  Widget _buildHeader() {
-    // 1. Extract the user data from route settings inside the helper
-    final Map<String, dynamic>? userData =
-        ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
+  Widget _buildHeader(Map<String, dynamic>? routeArgs) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 12.0),
       child: Row(
         children: [
-          // Back arrow navigation button
           IconButton(
             icon: const Icon(
               LucideIcons.arrow_left,
@@ -223,12 +342,11 @@ class _RankingScreenState extends State<RankingScreen> {
               size: 22,
             ),
             onPressed: () {
-              // 2. Safe navigation back to user dashboard with arguments
-              Navigator.pushReplacementNamed(
-                context,
-                '/user',
-                arguments: userData,
-              );
+              if (Navigator.canPop(context)) {
+                Navigator.pop(context);
+              } else {
+                widget.onGoToHome?.call();
+              }
             },
           ),
           const SizedBox(width: 4),
@@ -328,7 +446,6 @@ class _RankingScreenState extends State<RankingScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Rank 2 (Left)
         _buildPodiumPosition(
           top2,
           "2",
@@ -336,8 +453,6 @@ class _RankingScreenState extends State<RankingScreen> {
           const Color(0xFF334155),
           const Color(0xFF1E293B),
         ),
-
-        // Rank 1 (Center - Elevated)
         _buildPodiumPosition(
           top1,
           "1",
@@ -346,8 +461,6 @@ class _RankingScreenState extends State<RankingScreen> {
           const Color(0xFF451A03),
           isFirst: true,
         ),
-
-        // Rank 3 (Right)
         _buildPodiumPosition(
           top3,
           "3",
@@ -367,15 +480,17 @@ class _RankingScreenState extends State<RankingScreen> {
     Color cardBg, {
     bool isFirst = false,
   }) {
+    final String initial = user.name.isNotEmpty
+        ? user.name.substring(0, 1).toUpperCase()
+        : '?';
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Avatar stack with crowns
         Stack(
           alignment: Alignment.center,
           clipBehavior: Clip.none,
           children: [
-            // Circular Avatar Frame
             Container(
               width: isFirst ? 72 : 56,
               height: isFirst ? 72 : 56,
@@ -389,7 +504,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 child: CircleAvatar(
                   backgroundColor: const Color(0xFF1E293B),
                   child: Text(
-                    user.name.substring(0, 1),
+                    initial,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: isFirst ? 20 : 16,
@@ -399,7 +514,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
             ),
-            // Floating Crown on Top 1
             if (isFirst)
               const Positioned(
                 top: -14,
@@ -409,7 +523,6 @@ class _RankingScreenState extends State<RankingScreen> {
                   size: 18,
                 ),
               ),
-            // Floating Rank Bubble
             Positioned(
               top: isFirst ? 20 : 12,
               right: isFirst ? -12 : -10,
@@ -432,8 +545,6 @@ class _RankingScreenState extends State<RankingScreen> {
           ],
         ),
         const SizedBox(height: 8),
-
-        // Name and level info
         Text(
           user.name,
           style: const TextStyle(
@@ -448,8 +559,6 @@ class _RankingScreenState extends State<RankingScreen> {
           style: const TextStyle(color: Color(0xFF64748B), fontSize: 9),
         ),
         const SizedBox(height: 8),
-
-        // Percentage Card below
         Container(
           width: isFirst ? 110 : 95,
           padding: const EdgeInsets.symmetric(vertical: 8),
@@ -480,7 +589,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Row Item for each Rank
   Widget _buildLeaderboardTile(LeaderboardUser user) {
     final bool isTop3 = user.rank <= 3;
     final Color borderAccent = user.isCurrentUser
@@ -494,6 +602,10 @@ class _RankingScreenState extends State<RankingScreen> {
         : (isTop3
               ? const Color(0xFF451A03).withOpacity(0.1)
               : const Color(0xFF0F172A).withOpacity(0.3));
+
+    final String initial = user.name.isNotEmpty
+        ? user.name.substring(0, 1).toUpperCase()
+        : '?';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -510,7 +622,6 @@ class _RankingScreenState extends State<RankingScreen> {
         children: [
           Row(
             children: [
-              // Rank Text/Badge
               SizedBox(
                 width: 30,
                 child: isTop3
@@ -532,15 +643,13 @@ class _RankingScreenState extends State<RankingScreen> {
                         ),
                       ),
               ),
-
-              // Mini-Avatar
               CircleAvatar(
                 radius: 12,
                 backgroundColor: user.isCurrentUser
                     ? const Color(0xFF0284C7)
                     : const Color(0xFF1E293B),
                 child: Text(
-                  user.name.substring(0, 1),
+                  initial,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 10,
@@ -549,8 +658,6 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-
-              // Name and Stats
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -637,8 +744,6 @@ class _RankingScreenState extends State<RankingScreen> {
                   ],
                 ),
               ),
-
-              // Accuracy percentage on the right
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -653,12 +758,9 @@ class _RankingScreenState extends State<RankingScreen> {
                     ),
                   ),
                   const SizedBox(height: 1),
-                  Text(
+                  const Text(
                     "Accuracy",
-                    style: const TextStyle(
-                      color: Color(0xFF475569),
-                      fontSize: 8,
-                    ),
+                    style: TextStyle(color: Color(0xFF475569), fontSize: 8),
                   ),
                   Text(
                     "${user.sessions} sessions",
@@ -672,7 +774,6 @@ class _RankingScreenState extends State<RankingScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          // Clean Visual Progress bar matching your aesthetic
           Stack(
             children: [
               Container(
@@ -683,7 +784,7 @@ class _RankingScreenState extends State<RankingScreen> {
                 ),
               ),
               FractionallySizedBox(
-                widthFactor: user.accuracy / 100,
+                widthFactor: (user.accuracy / 100).clamp(0.0, 1.0),
                 child: Container(
                   height: 3,
                   decoration: BoxDecoration(
@@ -703,8 +804,11 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Your Performance Summary Card
-  Widget _buildPerformanceSummary() {
+  // Performance Summary Card with dynamic data
+  Widget _buildPerformanceSummary(
+    LeaderboardUser currentUser,
+    int pointsToNext,
+  ) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -719,7 +823,7 @@ class _RankingScreenState extends State<RankingScreen> {
               Expanded(
                 child: _buildSummaryGridTile(
                   "Current Rank",
-                  "#7",
+                  "#${currentUser.rank}",
                   const Color(0xFF0EA5E9),
                 ),
               ),
@@ -727,7 +831,7 @@ class _RankingScreenState extends State<RankingScreen> {
               Expanded(
                 child: _buildSummaryGridTile(
                   "Points to Next",
-                  "280",
+                  "$pointsToNext",
                   const Color(0xFFA855F7),
                 ),
               ),
@@ -738,8 +842,8 @@ class _RankingScreenState extends State<RankingScreen> {
             children: [
               Expanded(
                 child: _buildSummaryGridTile(
-                  "Sessions This Week",
-                  "18",
+                  "Sessions Completed",
+                  "${currentUser.sessions}",
                   const Color(0xFFEC4899),
                 ),
               ),
@@ -747,14 +851,13 @@ class _RankingScreenState extends State<RankingScreen> {
               Expanded(
                 child: _buildSummaryGridTile(
                   "Avg. Accuracy",
-                  "87%",
+                  "${currentUser.accuracy}%",
                   const Color(0xFFEAB308),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          // Pink Banner Button
           Material(
             color: Colors.transparent,
             child: InkWell(

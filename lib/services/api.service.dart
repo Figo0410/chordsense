@@ -49,7 +49,7 @@ class ApiService {
     String password,
   ) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/auth/register'), // ✅ FIXED: Added /auth here!
+      Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'username': username,
@@ -121,6 +121,20 @@ class ApiService {
       throw Exception(body['message'] ?? 'Failed to reset password');
     } else {
       throw Exception('Server error (${response.statusCode}).');
+    }
+  }
+
+  // Fetch all songs from MongoDB
+  static Future<List<dynamic>> getSongs() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/songs'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch songs from server.');
     }
   }
 }

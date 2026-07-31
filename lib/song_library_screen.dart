@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'guided_play_screen.dart'; // Import GuidedPlayScreen widget
 import 'request_song_screen.dart'; // Import RequestSongScreen widget
+import 'services/api.service.dart'; // Import ApiService
 
 enum Difficulty { all, beginner, intermediate }
 
@@ -21,6 +22,34 @@ class Song {
     required this.durationMinutes,
     required this.chords,
   });
+
+  // Factory constructor to safely map JSON from MongoDB songRoutes.js
+  factory Song.fromJson(Map<String, dynamic> json) {
+    Difficulty diff = Difficulty.beginner;
+    final level = (json['level'] ?? '').toString().toLowerCase();
+    if (level == 'intermediate') {
+      diff = Difficulty.intermediate;
+    }
+
+    List<String> parsedChords = [];
+    final chordsData = json['chords'];
+
+    if (chordsData is List) {
+      parsedChords = chordsData.map((c) => c.toString()).toList();
+    } else if (chordsData is String && chordsData.isNotEmpty) {
+      // If chords were saved as a single String or comma-separated String
+      parsedChords = chordsData.split(',').map((c) => c.trim()).toList();
+    }
+
+    return Song(
+      title: json['title'] ?? 'Untitled Song',
+      artist: json['artist'] ?? 'Unknown Artist',
+      difficulty: diff,
+      chordCount: parsedChords.length,
+      durationMinutes: json['durationMinutes'] ?? 3,
+      chords: parsedChords,
+    );
+  }
 }
 
 class SongLibraryScreen extends StatefulWidget {
@@ -34,90 +63,30 @@ class SongLibraryScreen extends StatefulWidget {
 
 class _SongLibraryScreenState extends State<SongLibraryScreen> {
   Difficulty _selectedDifficulty = Difficulty.all;
+  List<Song> _allSongs = [];
+  bool _isLoading = true;
+  String? _errorMessage;
 
-  // Complete song list matching the attached screenshots
-  final List<Song> _allSongs = [
-    Song(
-      title: "Alapaap",
-      artist: "Eraserheads",
-      difficulty: Difficulty.beginner,
-      chordCount: 4,
-      durationMinutes: 3,
-      chords: ["G", "D", "Em", "C"],
-    ),
-    Song(
-      title: "Torete",
-      artist: "Moonstar88",
-      difficulty: Difficulty.beginner,
-      chordCount: 4,
-      durationMinutes: 4,
-      chords: ["C", "G", "Am", "F"],
-    ),
-    Song(
-      title: "Narda",
-      artist: "Kamikazee",
-      difficulty: Difficulty.beginner,
-      chordCount: 4,
-      durationMinutes: 3,
-      chords: ["Em", "C", "G", "D"],
-    ),
-    Song(
-      title: "Huling El Bimbo",
-      artist: "Eraserheads",
-      difficulty: Difficulty.intermediate,
-      chordCount: 5,
-      durationMinutes: 6,
-      chords: ["C#m", "A", "E", "B", "F#m"],
-    ),
-    Song(
-      title: "Pare Ko",
-      artist: "Eraserheads",
-      difficulty: Difficulty.beginner,
-      chordCount: 4,
-      durationMinutes: 4,
-      chords: ["E", "A", "B", "C#m"],
-    ),
-    Song(
-      title: "Tadhana",
-      artist: "Up Dharma Down",
-      difficulty: Difficulty.intermediate,
-      chordCount: 5,
-      durationMinutes: 5,
-      chords: ["Bm", "A", "G", "D", "Em"],
-    ),
-    Song(
-      title: "With a Smile",
-      artist: "Eraserheads",
-      difficulty: Difficulty.beginner,
-      chordCount: 5,
-      durationMinutes: 4,
-      chords: ["C", "G", "Am", "F", "Dm"],
-    ),
-    Song(
-      title: "Harana",
-      artist: "Parokya ni Edgar",
-      difficulty: Difficulty.beginner,
-      chordCount: 5,
-      durationMinutes: 5,
-      chords: ["C", "G", "Am", "Em", "F"],
-    ),
-    Song(
-      title: "Binibini",
-      artist: "Zack Tabudlo",
-      difficulty: Difficulty.intermediate,
-      chordCount: 5,
-      durationMinutes: 4,
-      chords: ["F#m", "A", "E", "D", "Bm"],
-    ),
-    Song(
-      title: "Kathang Isip",
-      artist: "Ben&Ben",
-      difficulty: Difficulty.intermediate,
-      chordCount: 6,
-      durationMinutes: 6,
-      chords: ["C", "Em", "Am", "F", "G", "Dm"],
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchSongsFromBackend();
+  }
+
+  Future<void> _fetchSongsFromBackend() async {
+    try {
+      final songsJson = await ApiService.getSongs();
+      setState(() {
+        _allSongs = songsJson.map((json) => Song.fromJson(json)).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   List<Song> get _filteredSongs {
     if (_selectedDifficulty == Difficulty.all) {
@@ -139,21 +108,35 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    _buildFilterSection(),
-                    const SizedBox(height: 20),
-                    _buildSubHeader(displayedSongs.length),
-                    const SizedBox(height: 16),
-                    ...displayedSongs.map((song) => _buildSongCard(song)),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF0EA5E9),
+                      ),
+                    )
+                  : _errorMessage != null
+                  ? Center(
+                      child: Text(
+                        "Failed to load songs.\n$_errorMessage",
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.redAccent),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 12),
+                          _buildFilterSection(),
+                          const SizedBox(height: 20),
+                          _buildSubHeader(displayedSongs.length),
+                          const SizedBox(height: 16),
+                          ...displayedSongs.map((song) => _buildSongCard(song)),
+                          const SizedBox(height: 20),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -461,6 +444,7 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                     builder: (context) => GuidedPlayScreen(
                       songTitle: song.title,
                       artist: song.artist,
+                      songChords: song.chords,
                     ),
                   ),
                 );

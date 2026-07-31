@@ -1,21 +1,25 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:http/http.dart' as http;
 import 'achievements_screen.dart';
 import 'login_screen.dart';
+import 'services/api.service.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final Map<String, dynamic>? userProfileData;
+
+  const ProfileScreen({super.key, this.userProfileData});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  // Profile state variables
-  String _displayName = "Joshua";
-  String _email = "joshua@example.com";
-  String _bio = "Guitar enthusiast & learner";
+  // Real User Data Container
+  Map<String, dynamic> _userData = {};
+  bool _isLoading = false;
 
   // Settings state variables
   String _selectedLanguage = "English";
@@ -27,10 +31,128 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _newSongsNotif = true;
   bool _streakAlertsNotif = true;
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.userProfileData != null) {
+      _userData = Map<String, dynamic>.from(widget.userProfileData!);
+    }
+    _fetchFreshUserData();
+  }
+
+  // Fetch real data from backend
+  Future<void> _fetchFreshUserData() async {
+    final userId = _userData['_id'] ?? _userData['id'];
+    if (userId == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/auth/profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final freshData = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _userData = freshData;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching profile data: $e');
+    }
+  }
+
+  // Save profile changes to backend database
+  Future<void> _saveProfileChanges(
+    String newName,
+    String newEmail,
+    String newBio,
+  ) async {
+    final userId = _userData['_id'] ?? _userData['id'];
+    if (userId == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiService.baseUrl}/auth/profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'username': newName,
+          'email': newEmail,
+          'bio': newBio,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final updated = jsonDecode(response.body);
+        setState(() {
+          _userData = updated;
+        });
+        _showToast("Profile updated successfully!");
+      } else {
+        // Fallback update locally if endpoint is distinct
+        setState(() {
+          _userData['username'] = newName;
+          _userData['email'] = newEmail;
+          _userData['bio'] = newBio;
+        });
+        _showToast("Profile updated locally.");
+      }
+    } catch (e) {
+      // Fallback local update on network failure
+      setState(() {
+        _userData['username'] = newName;
+        _userData['email'] = newEmail;
+        _userData['bio'] = newBio;
+      });
+      _showToast("Saved offline.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Reset Progress call
+  Future<void> _resetProgress() async {
+    final userId = _userData['_id'] ?? _userData['id'];
+    if (userId == null) return;
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/auth/reset-progress/$userId'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        _fetchFreshUserData();
+        _showToast("All progress reset successfully.");
+      } else {
+        setState(() {
+          _userData['chordsMastered'] = 0;
+          _userData['streak'] = 0;
+          _userData['totalPoints'] = 0;
+          _userData['currentLevel'] = 1;
+          _userData['unlockedBadges'] = [];
+        });
+        _showToast("Progress reset to zero.");
+      }
+    } catch (e) {
+      _showToast("Failed to reset progress on server.");
+    }
+  }
+
   void _showEditProfileDialog() {
-    final nameController = TextEditingController(text: _displayName);
-    final emailController = TextEditingController(text: _email);
-    final bioController = TextEditingController(text: _bio);
+    final nameController = TextEditingController(
+      text: _userData['username'] ?? "User",
+    );
+    final emailController = TextEditingController(
+      text: _userData['email'] ?? "user@example.com",
+    );
+    final bioController = TextEditingController(
+      text: _userData['bio'] ?? "Guitar enthusiast & learner",
+    );
 
     showDialog(
       context: context,
@@ -112,20 +234,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       Positioned(
                         right: 0,
                         bottom: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF06B6D4),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFF0F172A),
-                              width: 2,
+                        child: GestureDetector(
+                          onTap: () =>
+                              _showToast("Profile picture upload coming soon!"),
+                          child: Container(
+                            padding: const EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF06B6D4),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF0F172A),
+                                width: 2,
+                              ),
                             ),
-                          ),
-                          child: const Icon(
-                            LucideIcons.camera,
-                            color: Colors.white,
-                            size: 12,
+                            child: const Icon(
+                              LucideIcons.camera,
+                              color: Colors.white,
+                              size: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -137,9 +263,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
                   ),
                   const SizedBox(height: 20),
-                  Align(
+                  const Align(
                     alignment: Alignment.centerLeft,
-                    child: const Text(
+                    child: Text(
                       "Display Name",
                       style: TextStyle(
                         color: Colors.white,
@@ -151,9 +277,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 6),
                   _buildDialogTextField(nameController),
                   const SizedBox(height: 14),
-                  Align(
+                  const Align(
                     alignment: Alignment.centerLeft,
-                    child: const Text(
+                    child: Text(
                       "Email",
                       style: TextStyle(
                         color: Colors.white,
@@ -165,9 +291,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 6),
                   _buildDialogTextField(emailController),
                   const SizedBox(height: 14),
-                  Align(
+                  const Align(
                     alignment: Alignment.centerLeft,
-                    child: const Text(
+                    child: Text(
                       "Bio",
                       style: TextStyle(
                         color: Colors.white,
@@ -210,12 +336,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           height: 40,
                           child: ElevatedButton(
                             onPressed: () {
-                              setState(() {
-                                _displayName = nameController.text;
-                                _email = emailController.text;
-                                _bio = bioController.text;
-                              });
                               Navigator.of(context).pop();
+                              _saveProfileChanges(
+                                nameController.text.trim(),
+                                emailController.text.trim(),
+                                bioController.text.trim(),
+                              );
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF06B6D4),
@@ -247,7 +373,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showHelpSupportDialog() {
-    // FAQ expanded states (Index 0 is expanded by default as shown in the mockup)
     List<bool> isExpandedList = [true, false, false, false, false];
 
     final List<Map<String, String>> faqs = [
@@ -312,7 +437,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -335,17 +459,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // Scrollable Area
                     Expanded(
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // FREQUENTLY ASKED QUESTIONS
                             _buildSectionHeader("FREQUENTLY ASKED QUESTIONS"),
                             const SizedBox(height: 10),
-
                             for (int i = 0; i < faqs.length; i++) ...[
                               _buildFaqItem(
                                 question: faqs[i]["question"]!,
@@ -360,22 +480,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               if (i < faqs.length - 1)
                                 const SizedBox(height: 8),
                             ],
-
                             const SizedBox(height: 20),
-
-                            // CONTACT US
                             _buildSectionHeader("CONTACT US"),
                             const SizedBox(height: 10),
-
                             _buildContactItem(
                               icon: LucideIcons.mail,
                               iconColor: const Color(0xFF0EA5E9),
                               title: "Email Support",
                               subtitle: "support@chordsense.app",
-                              onTap: () => _showToast("Opening email app..."),
+                              onTap: () =>
+                                  _showToast("Opening email client..."),
                             ),
                             const SizedBox(height: 8),
-
                             _buildContactItem(
                               icon: LucideIcons.message_square,
                               iconColor: const Color(0xFFA855F7),
@@ -384,8 +500,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               onTap: () => _showToast("Opening forum..."),
                             ),
                             const SizedBox(height: 24),
-
-                            // Build Version Subtitle
                             const Center(
                               child: Text(
                                 "ChordSense v1.0.0 · Build 2026.07",
@@ -572,7 +686,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showShareDialog() {
-    const String inviteLink = "https://chordsense.app/invite/joshua123";
+    final username = _userData['username'] ?? 'friend';
+    final String inviteLink = "https://chordsense.app/invite/$username";
 
     showDialog(
       context: context,
@@ -602,7 +717,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -626,8 +740,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
-                // Hero Illustration / Icon
                 Container(
                   width: 54,
                   height: 54,
@@ -640,7 +752,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
                 const Text(
                   "Invite your friends to ChordSense!",
                   style: TextStyle(
@@ -655,11 +766,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
                 ),
                 const SizedBox(height: 24),
-
-                // Invite Link Input Section
-                Align(
+                const Align(
                   alignment: Alignment.centerLeft,
-                  child: const Text(
+                  child: Text(
                     "Your invite link",
                     style: TextStyle(
                       color: Colors.white,
@@ -669,7 +778,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-
                 Row(
                   children: [
                     Expanded(
@@ -683,10 +791,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: const Color(0xFF1E293B)),
                         ),
-                        child: const Text(
+                        child: Text(
                           inviteLink,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: const TextStyle(
                             color: Color(0xFF94A3B8),
                             fontSize: 12,
                           ),
@@ -696,9 +804,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
-                        Clipboard.setData(
-                          const ClipboardData(text: inviteLink),
-                        );
+                        Clipboard.setData(ClipboardData(text: inviteLink));
                         _showToast("Link copied to clipboard!");
                       },
                       child: Container(
@@ -718,11 +824,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-
-                // Share Via Section
-                Align(
+                const Align(
                   alignment: Alignment.centerLeft,
-                  child: const Text(
+                  child: Text(
                     "Share via",
                     style: TextStyle(
                       color: Colors.white,
@@ -732,7 +836,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-
                 Row(
                   children: [
                     Expanded(
@@ -740,7 +843,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         icon: LucideIcons.message_circle,
                         label: "Message",
                         iconColor: const Color(0xFF22C55E),
-                        onTap: () => _showToast("Opening Message..."),
+                        onTap: () => _showToast("Opening Messages..."),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -863,8 +966,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 20),
-
-                    // LANGUAGE SECTION
                     _buildSectionHeader("LANGUAGE"),
                     const SizedBox(height: 8),
                     Container(
@@ -900,7 +1001,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                 ),
-                                items: ["English", "Spanish", "Tagalog"]
+                                items: ["English"]
                                     .map(
                                       (lang) => DropdownMenuItem(
                                         value: lang,
@@ -910,12 +1011,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     .toList(),
                                 onChanged: (value) {
                                   if (value != null) {
-                                    setModalState(() {
-                                      _selectedLanguage = value;
-                                    });
-                                    setState(() {
-                                      _selectedLanguage = value;
-                                    });
+                                    setModalState(
+                                      () => _selectedLanguage = value,
+                                    );
+                                    setState(() => _selectedLanguage = value);
                                   }
                                 },
                               ),
@@ -925,12 +1024,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-
-                    // ACCOUNT SECTION
                     _buildSectionHeader("ACCOUNT"),
                     const SizedBox(height: 8),
                     InkWell(
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        _confirmResetProgress();
+                      },
                       borderRadius: BorderRadius.circular(8),
                       child: Container(
                         width: double.infinity,
@@ -954,13 +1054,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
-                    // SAVE BUTTON
                     SizedBox(
                       width: double.infinity,
                       height: 44,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showToast("Settings saved.");
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF06B6D4),
                           elevation: 0,
@@ -985,6 +1086,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
           },
         );
       },
+    );
+  }
+
+  void _confirmResetProgress() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        title: const Text(
+          "Reset Progress?",
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          "Are you sure you want to reset all chords, streaks, and points? This cannot be undone.",
+          style: TextStyle(color: Color(0xFF94A3B8)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Cancel", style: TextStyle(color: Colors.white)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFF43F5E),
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _resetProgress();
+            },
+            child: const Text("Reset", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1023,7 +1157,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -1046,17 +1179,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                     const SizedBox(height: 16),
-
-                    // Scrollable List Content
                     Expanded(
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // RECENT SECTION
                             _buildSectionHeader("RECENT"),
                             const SizedBox(height: 10),
-
                             _buildRecentNotifItem(
                               emojiIcon: "🏆",
                               title: "New Achievement Unlocked!",
@@ -1065,17 +1194,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               isUnread: true,
                             ),
                             const SizedBox(height: 8),
-
                             _buildRecentNotifItem(
                               emojiIcon: "🔥",
                               title: "Streak Reminder",
                               subtitle:
-                                  "Don't break your 12-day streak — practice today!",
+                                  "Don't break your streak — practice today!",
                               time: "5h ago",
                               isUnread: true,
                             ),
                             const SizedBox(height: 8),
-
                             _buildRecentNotifItem(
                               emojiIcon: "🎸",
                               title: "New Song Added",
@@ -1084,22 +1211,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               time: "1d ago",
                               isUnread: false,
                             ),
-                            const SizedBox(height: 8),
-
-                            _buildRecentNotifItem(
-                              emojiIcon: "📊",
-                              title: "Weekly Report Ready",
-                              subtitle: "You improved 18% accuracy this week.",
-                              time: "3d ago",
-                              isUnread: false,
-                            ),
-
                             const SizedBox(height: 20),
-
-                            // PREFERENCES SECTION
                             _buildSectionHeader("PREFERENCES"),
                             const SizedBox(height: 10),
-
                             _buildPreferenceSwitchTile(
                               title: "Practice Reminders",
                               subtitle: "Daily nudge to keep your streak",
@@ -1110,7 +1224,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               },
                             ),
                             const SizedBox(height: 8),
-
                             _buildPreferenceSwitchTile(
                               title: "Achievements",
                               subtitle: "When you unlock a badge",
@@ -1121,7 +1234,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               },
                             ),
                             const SizedBox(height: 8),
-
                             _buildPreferenceSwitchTile(
                               title: "Weekly Report",
                               subtitle: "Summary of your progress",
@@ -1132,7 +1244,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               },
                             ),
                             const SizedBox(height: 8),
-
                             _buildPreferenceSwitchTile(
                               title: "New Songs Added",
                               subtitle: "When new tracks arrive",
@@ -1143,7 +1254,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               },
                             ),
                             const SizedBox(height: 8),
-
                             _buildPreferenceSwitchTile(
                               title: "Streak Alerts",
                               subtitle: "Reminder before streak breaks",
@@ -1157,15 +1267,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 16),
-
-                    // Save Preferences Button
                     SizedBox(
                       width: double.infinity,
                       height: 44,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          _showToast("Notification preferences saved.");
+                        },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF06B6D4),
                           elevation: 0,
@@ -1353,6 +1463,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final String displayName = _userData['username'] ?? 'User';
+    final String email = _userData['email'] ?? 'user@example.com';
+    final int level = _userData['currentLevel'] ?? 1;
+    final int points = _userData['totalPoints'] ?? 0;
+    final int chordsMastered = _userData['chordsMastered'] ?? 0;
+    final int streak = _userData['streak'] ?? 0;
+    final int sessions = (_userData['practiceSessions'] is List)
+        ? (_userData['practiceSessions'] as List).length
+        : 0;
+
     return Scaffold(
       backgroundColor: const Color(0xFF070B14),
       body: SafeArea(
@@ -1363,9 +1483,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               _buildHeader(),
               const SizedBox(height: 20),
-              _buildUserCard(),
+              _buildUserCard(displayName, email, level, points),
               const SizedBox(height: 16),
-              _buildStatsRow(),
+              _buildStatsRow(chordsMastered, sessions, streak),
               const SizedBox(height: 16),
               _buildRecentAchievementsCard(context),
               const SizedBox(height: 16),
@@ -1394,10 +1514,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 label: "Logout",
                 isLogout: true,
                 onTap: () {
-                  Navigator.of(context).push(
+                  Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(
                       builder: (context) => const LoginScreen(),
                     ),
+                    (route) => false,
                   );
                 },
               ),
@@ -1432,7 +1553,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildUserCard() {
+  Widget _buildUserCard(String name, String email, int level, int points) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1473,7 +1594,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _displayName,
+                      name,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
@@ -1482,7 +1603,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _email,
+                      email,
                       style: const TextStyle(
                         color: Color(0xFF64748B),
                         fontSize: 12,
@@ -1503,9 +1624,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: const Color(0xFF6B21A8).withOpacity(0.5),
                             ),
                           ),
-                          child: const Text(
-                            "Level 7",
-                            style: TextStyle(
+                          child: Text(
+                            "Level $level",
+                            style: const TextStyle(
                               color: Color(0xFFA855F7),
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -1525,9 +1646,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: const Color(0xFF0EA5E9).withOpacity(0.5),
                             ),
                           ),
-                          child: const Text(
-                            "3,450 pts",
-                            style: TextStyle(
+                          child: Text(
+                            "$points pts",
+                            style: const TextStyle(
                               color: Color(0xFF38BDF8),
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
@@ -1568,23 +1689,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(int chords, int sessions, int streak) {
     return Row(
       children: [
         Expanded(
           child: _buildStatCard(
-            "23",
+            "$chords",
             "Chords Mastered",
             const Color(0xFF22D3EE),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _buildStatCard("47", "Sessions", const Color(0xFFA855F7)),
+          child: _buildStatCard(
+            "$sessions",
+            "Sessions",
+            const Color(0xFFA855F7),
+          ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: _buildStatCard("12 🔥", "Day Streak", const Color(0xFFF43F5E)),
+          child: _buildStatCard(
+            "$streak 🔥",
+            "Day Streak",
+            const Color(0xFFF43F5E),
+          ),
         ),
       ],
     );
@@ -1620,6 +1749,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildRecentAchievementsCard(BuildContext context) {
+    final List unlocked = (_userData['unlockedBadges'] is List)
+        ? (_userData['unlockedBadges'] as List)
+        : [];
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1644,7 +1777,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const AchievementsScreen(),
+                      builder: (context) =>
+                          AchievementsScreen(userProfileData: _userData),
                     ),
                   );
                 },
@@ -1666,6 +1800,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _buildAchievementItem(
                   LucideIcons.guitar,
                   const Color(0xFFF43F5E),
+                  "First Steps",
+                  unlocked.contains("first_steps"),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1673,6 +1809,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _buildAchievementItem(
                   LucideIcons.flame,
                   const Color(0xFFFB923C),
+                  "Week Warrior",
+                  unlocked.contains("week_warrior"),
                 ),
               ),
               const SizedBox(width: 10),
@@ -1680,6 +1818,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _buildAchievementItem(
                   LucideIcons.star,
                   const Color(0xFFFBBF24),
+                  "Chord Master",
+                  unlocked.contains("chord_master"),
                 ),
               ),
             ],
@@ -1689,21 +1829,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildAchievementItem(IconData icon, Color iconColor) {
+  Widget _buildAchievementItem(
+    IconData icon,
+    Color iconColor,
+    String title,
+    bool isUnlocked,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: const Color(0xFF0B1120),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2E1065).withOpacity(0.5)),
+        border: Border.all(
+          color: isUnlocked
+              ? iconColor.withOpacity(0.5)
+              : const Color(0xFF1E293B),
+        ),
       ),
       child: Column(
         children: [
-          Icon(icon, color: iconColor, size: 20),
+          Icon(
+            isUnlocked ? icon : LucideIcons.lock,
+            color: isUnlocked ? iconColor : const Color(0xFF475569),
+            size: 20,
+          ),
           const SizedBox(height: 8),
-          const Text(
-            "Achievement",
-            style: TextStyle(color: Color(0xFF64748B), fontSize: 10),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isUnlocked ? Colors.white : const Color(0xFF64748B),
+              fontSize: 10,
+              fontWeight: isUnlocked ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
         ],
       ),

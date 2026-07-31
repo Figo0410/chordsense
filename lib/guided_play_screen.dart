@@ -1,30 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 class ChordData {
   final String name;
   final String lyric;
-  // List of string statuses from String 6 (E-low) to String 1 (E-high): 'O' = Open, 'X' = Muted, '' = Fretted
   final List<String> topIndicators;
-  // Map of stringIndex (0-5) to fret number (1-4) and finger number
   final Map<int, Map<String, int>> fingerPositions;
+  final String? audioUrl; // URL for actual audio playback
 
   ChordData({
     required this.name,
-    required this.lyric,
+    this.lyric = "",
     required this.topIndicators,
     required this.fingerPositions,
+    this.audioUrl,
   });
 }
 
 class GuidedPlayScreen extends StatefulWidget {
   final String songTitle;
   final String artist;
+  final List<String>? songChords;
 
   const GuidedPlayScreen({
     super.key,
-    this.songTitle = "Alapaap",
-    this.artist = "Eraserheads",
+    this.songTitle = "Hotel California",
+    this.artist = "Eagles",
+    this.songChords,
   });
 
   @override
@@ -34,12 +37,15 @@ class GuidedPlayScreen extends StatefulWidget {
 class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
   int _currentIndex = 0;
   bool _isSuccessState = false;
+  late List<ChordData> _chords;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
-  // Sample progression data for Alapaap matching the screenshots
-  final List<ChordData> _chords = [
-    ChordData(
+  // Guitar chord library with public MP3 audio samples for each chord
+  static final Map<String, ChordData> _chordLibrary = {
+    "G": ChordData(
       name: "G",
-      lyric: '"Walang nagawa..."',
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/G.mp3",
       topIndicators: ['', 'O', 'O', 'O', '', ''],
       fingerPositions: {
         0: {'fret': 3, 'finger': 3},
@@ -47,28 +53,31 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
         5: {'fret': 3, 'finger': 3},
       },
     ),
-    ChordData(
+    "D": ChordData(
       name: "D",
-      lyric: '"kundi ang makinig..."',
-      topIndicators: ['', '', 'O', 'X', 'X', ''],
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/D.mp3",
+      topIndicators: ['X', 'X', 'O', '', '', ''],
       fingerPositions: {
-        0: {'fret': 2, 'finger': 2},
-        1: {'fret': 3, 'finger': 3},
-        3: {'fret': 2, 'finger': 2},
+        3: {'fret': 2, 'finger': 1},
+        4: {'fret': 3, 'finger': 3},
+        5: {'fret': 2, 'finger': 2},
       },
     ),
-    ChordData(
+    "Em": ChordData(
       name: "Em",
-      lyric: '"sa mga bulong..."',
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/E.mp3",
       topIndicators: ['O', '', '', 'O', 'O', 'O'],
       fingerPositions: {
         1: {'fret': 2, 'finger': 2},
         2: {'fret': 2, 'finger': 3},
       },
     ),
-    ChordData(
+    "C": ChordData(
       name: "C",
-      lyric: '"ng hangin..."',
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/C.mp3",
       topIndicators: ['X', '', '', 'O', '', 'O'],
       fingerPositions: {
         1: {'fret': 3, 'finger': 3},
@@ -76,14 +85,123 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
         4: {'fret': 1, 'finger': 1},
       },
     ),
-  ];
+    "A": ChordData(
+      name: "A",
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/A.mp3",
+      topIndicators: ['X', 'O', '', '', '', 'O'],
+      fingerPositions: {
+        2: {'fret': 2, 'finger': 1},
+        3: {'fret': 2, 'finger': 2},
+        4: {'fret': 2, 'finger': 3},
+      },
+    ),
+    "Bm": ChordData(
+      name: "Bm",
+      audioUrl:
+          "https://raw.githubusercontent.com/tensorspace-team/tensorspace/master/examples/audio/audios/B.mp3",
+      topIndicators: ['X', '', '', '', '', ''],
+      fingerPositions: {
+        1: {'fret': 2, 'finger': 1},
+        2: {'fret': 4, 'finger': 3},
+        3: {'fret': 4, 'finger': 4},
+        4: {'fret': 3, 'finger': 2},
+        5: {'fret': 2, 'finger': 1},
+      },
+    ),
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeChords();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  void _initializeChords() {
+    if (widget.songChords != null && widget.songChords!.isNotEmpty) {
+      List<ChordData> loaded = [];
+
+      for (var chordName in widget.songChords!) {
+        final cleanName = chordName.trim();
+        if (_chordLibrary.containsKey(cleanName)) {
+          loaded.add(_chordLibrary[cleanName]!);
+        } else {
+          loaded.add(
+            ChordData(
+              name: cleanName,
+              topIndicators: ['X', 'O', '', '', '', 'O'],
+              fingerPositions: {
+                1: {'fret': 3, 'finger': 3},
+                2: {'fret': 2, 'finger': 2},
+                4: {'fret': 1, 'finger': 1},
+              },
+            ),
+          );
+        }
+      }
+
+      if (loaded.isNotEmpty && !loaded.first.name.contains("chords")) {
+        _chords = loaded;
+        return;
+      }
+    }
+
+    // Default fallback list if no custom chords provided
+    _chords = [
+      _chordLibrary["G"]!,
+      _chordLibrary["D"]!,
+      _chordLibrary["Em"]!,
+      _chordLibrary["C"]!,
+    ];
+  }
+
+  Future<void> _playChordAudio() async {
+    final currentChord = _chords[_currentIndex];
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 1),
+        backgroundColor: const Color(0xFF0F172A),
+        content: Row(
+          children: [
+            const Icon(
+              LucideIcons.volume_2,
+              color: Color(0xFF38BDF8),
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              "Playing sound for ${currentChord.name} chord...",
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await _audioPlayer.stop();
+      // Use AssetSource to load directly from app bundles without network delays
+      await _audioPlayer.play(AssetSource('audio/${currentChord.name}.mp3'));
+    } catch (e) {
+      debugPrint("Audio play error: $e");
+    }
+  }
 
   void _handleDetectChord() async {
     setState(() {
       _isSuccessState = true;
     });
 
-    // Automatically transition to the next chord after a short success display
+    _playChordAudio();
+
     await Future.delayed(const Duration(seconds: 2));
 
     if (mounted) {
@@ -175,15 +293,17 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          currentChord.lyric,
-                          style: const TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 13,
-                            fontStyle: FontStyle.italic,
+                        if (currentChord.lyric.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            currentChord.lyric,
+                            style: const TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
                           ),
-                        ),
+                        ],
                         const SizedBox(height: 16),
                         _buildFretboardCard(currentChord),
                         const SizedBox(height: 16),
@@ -259,7 +379,6 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
       ),
       child: Column(
         children: [
-          // Top Open/Muted indicators
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: List.generate(6, (index) {
@@ -286,17 +405,13 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
             }),
           ),
           const SizedBox(height: 8),
-          // Interactive Fretboard Grid
           Container(
             height: 220,
             decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: Colors.white, width: 4), // Guitar Nut
-              ),
+              border: Border(top: BorderSide(color: Colors.white, width: 4)),
             ),
             child: Stack(
               children: [
-                // Fret Lines
                 Column(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(
@@ -308,7 +423,6 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                     ),
                   ),
                 ),
-                // String Lines & Finger Dots
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: List.generate(6, (stringIdx) {
@@ -364,7 +478,6 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // String Names Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: const [
@@ -419,7 +532,6 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // Legend
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: const [
@@ -503,61 +615,72 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: List.generate(_chords.length, (idx) {
-              final isSelected = idx == _currentIndex;
-              final isCompleted =
-                  idx < _currentIndex ||
-                  (idx == _currentIndex && _isSuccessState);
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(_chords.length, (idx) {
+                final isSelected = idx == _currentIndex;
+                final isCompleted =
+                    idx < _currentIndex ||
+                    (idx == _currentIndex && _isSuccessState);
 
-              return Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: isCompleted
-                      ? const Color(0xFF064E3B).withOpacity(0.4)
-                      : isSelected
-                      ? const Color(0xFF082F49)
-                      : const Color(0xFF1E293B).withOpacity(0.4),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isCompleted
-                        ? const Color(0xFF059669)
-                        : isSelected
-                        ? const Color(0xFF0EA5E9)
-                        : const Color(0xFF334155),
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _chords[idx].name,
-                      style: TextStyle(
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _currentIndex = idx;
+                      _isSuccessState = false;
+                    });
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isCompleted
+                          ? const Color(0xFF064E3B).withOpacity(0.4)
+                          : isSelected
+                          ? const Color(0xFF082F49)
+                          : const Color(0xFF1E293B).withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
                         color: isCompleted
-                            ? const Color(0xFF34D399)
+                            ? const Color(0xFF059669)
                             : isSelected
-                            ? const Color(0xFF38BDF8)
-                            : const Color(0xFF94A3B8),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                            ? const Color(0xFF0EA5E9)
+                            : const Color(0xFF334155),
                       ),
                     ),
-                    if (isCompleted) ...[
-                      const SizedBox(height: 2),
-                      const Icon(
-                        LucideIcons.check,
-                        color: Color(0xFF34D399),
-                        size: 10,
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            }),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _chords[idx].name,
+                          style: TextStyle(
+                            color: isCompleted
+                                ? const Color(0xFF34D399)
+                                : isSelected
+                                ? const Color(0xFF38BDF8)
+                                : const Color(0xFF94A3B8),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isCompleted) ...[
+                          const SizedBox(height: 2),
+                          const Icon(
+                            LucideIcons.check,
+                            color: Color(0xFF34D399),
+                            size: 10,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ),
           ),
         ],
       ),
@@ -569,7 +692,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () {},
+            onPressed: _playChordAudio,
             icon: const Icon(LucideIcons.play, size: 14, color: Colors.white),
             label: const Text(
               "Play",

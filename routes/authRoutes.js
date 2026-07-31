@@ -3,23 +3,31 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const nodemailer = require('nodemailer');
+const { checkAndAwardBadges } = require('../utils/badgeHelper');
 
 // 1. REGISTER ROUTE
 router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
-    // Check if the user already exists in MongoDB
-    const existingUser = await User.findOne({ username });
+    // Check if username OR email already exists in MongoDB
+    const existingUser = await User.findOne({ 
+      $or: [{ username }, { email }] 
+    });
+    
     if (existingUser) {
-      return res.status(400).json({ message: 'Username is already taken' });
+      return res.status(400).json({ 
+        message: existingUser.username === username 
+          ? 'Username is already taken' 
+          : 'Email is already registered' 
+      });
     }
 
-    // Create a new user with default initial stats
+    // Create a new user with plaintext password and default progress data
     const newUser = new User({
       username,
       email,
-      password,
+      password, // Plaintext as requested
       role: 'user',
       currentLevel: 1,
       totalPoints: 0,
@@ -29,6 +37,15 @@ router.post('/register', async (req, res) => {
       accuracy: 0,
       streak: 0,
       chordsMastered: 0,
+
+      // AUTOMATIC PROGRESS DATA FOR NEW USERS:
+      completedChords: [], // Starts empty until they pass a chord
+      learningChords: [
+        { name: 'C Major', attempts: 0, progress: 0 },
+        { name: 'G Major', attempts: 0, progress: 0 },
+        { name: 'A Minor', attempts: 0, progress: 0 }
+      ],
+      practiceSessions: []
     });
 
     // Save to MongoDB
@@ -39,6 +56,7 @@ router.post('/register', async (req, res) => {
       user: {
         _id: newUser._id,
         username: newUser.username,
+        email: newUser.email,
         role: newUser.role,
         currentLevel: newUser.currentLevel,
         totalPoints: newUser.totalPoints,
@@ -48,6 +66,9 @@ router.post('/register', async (req, res) => {
         accuracy: newUser.accuracy,
         streak: newUser.streak,
         chordsMastered: newUser.chordsMastered,
+        completedChords: newUser.completedChords,
+        learningChords: newUser.learningChords,
+        practiceSessions: newUser.practiceSessions,
       },
     });
   } catch (error) {
@@ -62,14 +83,16 @@ router.post('/login', async (req, res) => {
   try {
     const user = await User.findOne({ username });
 
+    // Simple plaintext password check
     if (!user || user.password !== password) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Return real user data
+    // Return full user data including progress arrays for Flutter
     res.json({
       _id: user._id,
       username: user.username,
+      email: user.email,
       role: user.role,
       currentLevel: user.currentLevel ?? 1,
       totalPoints: user.totalPoints ?? 0,
@@ -79,6 +102,9 @@ router.post('/login', async (req, res) => {
       accuracy: user.accuracy ?? 0,
       streak: user.streak ?? 0,
       chordsMastered: user.chordsMastered ?? 0,
+      completedChords: user.completedChords ?? [],
+      learningChords: user.learningChords ?? [],
+      practiceSessions: user.practiceSessions ?? [],
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -106,13 +132,13 @@ router.post('/forgot-password', async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: 'joshuaroel0410@gmail.com', // Replace with your Gmail
-        pass: 'nzbxxamicnbrncuc',   // Replace with your Google App Password
+        user: 'joshuaroel0410@gmail.com', 
+        pass: 'nzbxxamicnbrncuc',   
       },
     });
 
     const mailOptions = {
-      from: '"ChordSense Support" <YOUR_GMAIL_ADDRESS@gmail.com>',
+      from: '"ChordSense Support" <joshuaroel0410@gmail.com>',
       to: user.email,
       subject: 'Password Reset Code - ChordSense',
       html: `
@@ -133,7 +159,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
-// RESET PASSWORD ROUTE
+// 4. RESET PASSWORD ROUTE
 router.post('/reset-password', async (req, res) => {
   const { email, resetToken, newPassword } = req.body;
 
@@ -149,7 +175,7 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ message: 'Invalid or expired verification code.' });
     }
 
-    // Update password and clear reset token fields
+    // Update password (plaintext) and clear reset token fields
     user.password = newPassword;
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
@@ -161,6 +187,66 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// 5. GET LEADERBOARD ROUTE
+// GET /api/auth/leaderboard
+router.get('/leaderboard', async (req, res) => {
+  try {
+    const { sortBy } = req.query; // 'accuracy', 'xp', or 'sessions' sent from Flutter
 
-// testtest
+    // Map Flutter sorting tabs to your User schema fields
+    let sortField = 'accuracy';
+    if (sortBy === 'xp') {
+      sortField = 'totalPoints';
+    } else if (sortBy === 'sessions') {
+      sortField = 'practiceSessions';
+    } else if (sortBy === 'accuracy') {
+      sortField = 'accuracy';
+    }
+
+    // Query users: FILTER OUT admins using { role: { $ne: 'admin' } }
+    const users = await User.find({ role: { $ne: 'admin' } })
+      .select('username currentLevel totalPoints streak accuracy practiceSessions avatarAsset role')
+      .sort({ [sortField]: -1 })
+      .limit(50);
+
+    // Format fields so Flutter receives exact properties
+    const formattedLeaderboard = users.map((u) => ({
+      _id: u._id,
+      name: u.username,
+      level: u.currentLevel ?? 1,
+      xp: u.totalPoints ?? 0,
+      days: u.streak ?? 0,
+      accuracy: u.accuracy ?? 0,
+      sessions: Array.isArray(u.practiceSessions) ? u.practiceSessions.length : (u.practiceSessions ?? 0),
+      avatarAsset: u.avatarAsset ?? '',
+    }));
+
+    res.status(200).json(formattedLeaderboard);
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error);
+    res.status(500).json({ message: 'Server error fetching leaderboard' });
+  }
+});
+
+
+// 6. GET USER PROFILE ROUTE
+// GET User Profile (e.g., /api/user/profile/:id or /api/user/:id)
+// GET /api/auth/profile/:id
+router.get('/profile/:id', async (req, res) => {
+  try {
+    let user = await User.findById(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 👈 RUN BADGE CHECK & REASSIGN THE UPDATED USER
+    user = await checkAndAwardBadges(user);
+
+    res.json(user);
+  } catch (err) {
+    console.error('Error in profile route:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

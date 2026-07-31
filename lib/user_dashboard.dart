@@ -10,7 +10,9 @@ import 'achievements_screen.dart'; // Import AchievementsScreen widget
 import 'song_library_screen.dart'; // Import SongLibraryScreen widget
 
 class UserDashboard extends StatefulWidget {
-  const UserDashboard({super.key});
+  final Map<String, dynamic>? userData;
+
+  const UserDashboard({super.key, this.userData});
 
   @override
   State<UserDashboard> createState() => _UserDashboardState();
@@ -31,26 +33,53 @@ class _UserDashboardState extends State<UserDashboard> {
   int streak = 0;
   int chordsMastered = 0;
 
+  Map<String, dynamic> userProfileData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.userData != null) {
+      _loadUserData(widget.userData!);
+    }
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    // 2. Extract MongoDB data passed from LoginScreen when screen loads
-    final Map<String, dynamic>? userData =
+    // 2. Extract MongoDB data passed from LoginScreen or Main route settings
+    final Map<String, dynamic>? routeUserData =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    if (userData != null) {
+    if (routeUserData != null) {
+      _loadUserData(routeUserData);
+    }
+  }
+
+  void _loadUserData(Map<String, dynamic> userData) {
+    setState(() {
+      userProfileData = userData;
+
       userName = userData['username'] ?? 'User';
-      currentLevel = userData['currentLevel'] ?? 1;
-      totalPoints = userData['totalPoints'] ?? 0;
-      progressPercent = (userData['progressPercent'] ?? 0.0).toDouble();
-      nextLevelPoints = userData['nextLevelPoints'] ?? 1000;
+      currentLevel = (userData['currentLevel'] as num?)?.toInt() ?? 1;
+      totalPoints = (userData['totalPoints'] as num?)?.toInt() ?? 0;
+      nextLevelPoints = (userData['nextLevelPoints'] as num?)?.toInt() ?? 1000;
       currentChord = userData['currentChord'] ?? 'C Major';
 
-      accuracy = userData['accuracy'] ?? 0;
-      streak = userData['streak'] ?? 0;
-      chordsMastered = userData['chordsMastered'] ?? 0;
-    }
+      accuracy = (userData['accuracy'] as num?)?.toInt() ?? 0;
+      streak = (userData['streak'] as num?)?.toInt() ?? 0;
+      chordsMastered = (userData['chordsMastered'] as num?)?.toInt() ?? 0;
+
+      // DYNAMIC CALCULATION:
+      // Calculates percentage from points instead of relying on stagnant DB value.
+      if (nextLevelPoints > 0) {
+        progressPercent = (totalPoints / nextLevelPoints) * 100;
+        // Clamp between 0.0 and 100.0 just in case totalPoints exceeds nextLevelPoints
+        progressPercent = progressPercent.clamp(0.0, 100.0);
+      } else {
+        progressPercent = 0.0;
+      }
+    });
   }
 
   @override
@@ -84,9 +113,17 @@ class _UserDashboardState extends State<UserDashboard> {
       case 2:
         return const TunerScreen();
       case 3:
-        return const RankingScreen(); // Your ranking screen
+        return RankingScreen(
+          userId: userProfileData['_id']?.toString(),
+          username: userProfileData['username']?.toString(),
+          onGoToHome: () {
+            setState(() {
+              _currentIndex = 0;
+            });
+          },
+        ); // Your ranking screen
       case 4:
-        return const ProfileScreen();
+        return ProfileScreen(userProfileData: userProfileData);
       default:
         return _buildHomeDashboard();
     }
@@ -393,7 +430,6 @@ class _UserDashboardState extends State<UserDashboard> {
                               );
                             },
                             child: Container(
-                              // ... leave everything else in your container exactly as it is ...
                               child: Center(
                                 child: const Text(
                                   "Complete Tuner Setup",
@@ -576,7 +612,7 @@ class _UserDashboardState extends State<UserDashboard> {
                               const SizedBox(height: 4),
                               Text(
                                 "$totalPoints",
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
@@ -598,7 +634,7 @@ class _UserDashboardState extends State<UserDashboard> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: progressPercent,
+                          value: progressPercent / 100,
                           minHeight: 6,
                           backgroundColor: const Color(0xFF1E293B),
                           color: const Color(
@@ -727,7 +763,8 @@ class _UserDashboardState extends State<UserDashboard> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const ProgressScreen(),
+                            builder: (context) =>
+                                ProgressScreen(userData: userProfileData),
                           ),
                         );
                       },
@@ -742,6 +779,12 @@ class _UserDashboardState extends State<UserDashboard> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => const RankingScreen(),
+                            settings: RouteSettings(
+                              arguments: {
+                                'userId': userProfileData['_id'],
+                                'username': userProfileData['username'],
+                              },
+                            ),
                           ),
                         );
                       },
@@ -755,7 +798,9 @@ class _UserDashboardState extends State<UserDashboard> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const AchievementsScreen(),
+                            builder: (context) => AchievementsScreen(
+                              userProfileData: userProfileData,
+                            ),
                           ),
                         );
                       },
@@ -932,11 +977,9 @@ class _UserDashboardState extends State<UserDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // 1. REMOVED 'const' from children: const [
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // 2. Real next level calculation
                               Text(
                                 "Reach Level ${currentLevel + 1}",
                                 style: const TextStyle(
@@ -945,7 +988,6 @@ class _UserDashboardState extends State<UserDashboard> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              // 3. Dynamic points needed (Next Level Points minus Total Points)
                               Text(
                                 "${nextLevelPoints - totalPoints} points needed",
                                 style: const TextStyle(
@@ -955,9 +997,8 @@ class _UserDashboardState extends State<UserDashboard> {
                               ),
                             ],
                           ),
-                          // 4. Real progress percentage calculation
                           Text(
-                            "${(progressPercent * 100).toInt()}%",
+                            "${progressPercent.toInt()}%",
                             style: const TextStyle(
                               color: Color(0xFF22D3EE),
                               fontSize: 22,
@@ -969,11 +1010,11 @@ class _UserDashboardState extends State<UserDashboard> {
                       const SizedBox(height: 16),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: const LinearProgressIndicator(
-                          value: 0.86,
+                        child: LinearProgressIndicator(
+                          value: progressPercent / 100,
                           minHeight: 6,
-                          backgroundColor: Color(0xFF0F172A),
-                          color: Color(0xFF1E293B),
+                          backgroundColor: const Color(0xFF0F172A),
+                          color: const Color(0xFF1E293B),
                         ),
                       ),
                     ],
@@ -1029,13 +1070,12 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- MINI ACTIONS WIDGET CREATOR ---
   // --- MINI ACTION BUTTON WIDGET CREATOR ---
   Widget _buildMiniActionButton(
     String label,
     IconData icon,
     Color iconColor, {
-    VoidCallback? onTap, // 👈 Added this optional parameter
+    VoidCallback? onTap,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1047,7 +1087,7 @@ class _UserDashboardState extends State<UserDashboard> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap, // 👈 Hooked up the tap event here!
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(
               vertical: 12.0,
@@ -1075,13 +1115,12 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   // --- WIDE ACTION LIST ROW WIDGET CREATOR ---
-
   Widget _buildWideActionRow(
     String title,
     String subtitle,
     IconData icon,
     Color iconColor, {
-    VoidCallback? onTap, // 👈 Added this optional onTap parameter
+    VoidCallback? onTap,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -1093,7 +1132,7 @@ class _UserDashboardState extends State<UserDashboard> {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap, // 👈 Triggers your custom navigation!
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(

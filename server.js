@@ -28,6 +28,7 @@ app.use('/api/songs', require('./routes/songRoutes'));
 // ADD THIS LINE: Connects your login & authentication endpoints
 app.use('/api/auth', require('./routes/authRoutes')); 
 
+
 // 3. Test Route
 app.get('/', (req, res) => {
   res.send('API is running...');

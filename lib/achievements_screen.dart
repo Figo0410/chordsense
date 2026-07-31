@@ -1,7 +1,12 @@
+import 'dart:convert'; // 👈 FIXES: jsonDecode error
+import 'package:http/http.dart' as http; // Needed for http.get
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:http/http.dart' as http;
+import 'services/api.service.dart';
 
 class BadgeItem {
+  final String id;
   final String title;
   final String description;
   final int points;
@@ -10,6 +15,7 @@ class BadgeItem {
   final String? unlockedDate;
 
   BadgeItem({
+    required this.id,
     required this.title,
     required this.description,
     required this.points,
@@ -19,59 +25,163 @@ class BadgeItem {
   });
 }
 
-class AchievementsScreen extends StatelessWidget {
-  const AchievementsScreen({super.key});
+class AchievementsScreen extends StatefulWidget {
+  final Map<String, dynamic>? userProfileData;
+
+  const AchievementsScreen({super.key, this.userProfileData});
 
   @override
-  Widget build(BuildContext context) {
-    // Hardcoded to perfectly replicate the layout data in the screenshot
-    final List<BadgeItem> badges = [
+  State<AchievementsScreen> createState() => _AchievementsScreenState();
+}
+
+class _AchievementsScreenState extends State<AchievementsScreen> {
+  Map<String, dynamic> userData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.userProfileData != null) {
+      userData = widget.userProfileData!;
+    }
+    _fetchFreshUserData(); // 👈 Trigger backend check when screen loads
+  }
+
+  Future<void> _fetchFreshUserData() async {
+    final userId = userData['_id'] ?? userData['id'];
+    debugPrint('🔍 [FLUTTER] Fetching fresh data for userId: $userId');
+
+    if (userId == null) {
+      debugPrint('❌ [FLUTTER] Error: userId is null!');
+      return;
+    }
+
+    try {
+      // 👈 ADD /auth HERE TO MATCH server.js
+      final url = Uri.parse('${ApiService.baseUrl}/auth/profile/$userId');
+      debugPrint('📡 [FLUTTER] Sending GET request to: $url');
+
+      final response = await http.get(
+        url,
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      debugPrint('📩 [FLUTTER] Response Status Code: ${response.statusCode}');
+      debugPrint('📩 [FLUTTER] Response Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final updatedUser = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            userData = updatedUser;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [FLUTTER] Network Exception: $e');
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Fallback to route arguments if userProfileData wasn't passed directly via constructor
+    if (userData.isEmpty) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is Map<String, dynamic>) {
+        setState(() {
+          userData = args;
+        });
+      }
+    }
+  }
+
+  List<BadgeItem> _generateBadges() {
+    final int chordsMastered =
+        (userData['chordsMastered'] as num?)?.toInt() ?? 0;
+    final int streak = (userData['streak'] as num?)?.toInt() ?? 0;
+    final int accuracy = (userData['accuracy'] as num?)?.toInt() ?? 0;
+    final int sessionsCompleted =
+        (userData['sessionsCompleted'] as num?)?.toInt() ?? 0;
+
+    // Optional list of unlocked badges from DB if stored directly as array: e.g. userData['unlockedBadges']
+    final List<dynamic> unlockedBadgeIds = userData['unlockedBadges'] is List
+        ? userData['unlockedBadges']
+        : [];
+
+    return [
       BadgeItem(
+        id: "first_steps",
         title: "First Steps",
         description: "Complete your first chord",
         points: 50,
-        icon: LucideIcons.guitar, // Tailor this to your asset/icon preference
-        isUnlocked: true,
-        unlockedDate: "Mar 10, 2026",
+        icon: LucideIcons.guitar,
+        isUnlocked:
+            unlockedBadgeIds.contains("first_steps") ||
+            chordsMastered >= 1 ||
+            sessionsCompleted >= 1,
+        unlockedDate: userData['firstChordDate']?.toString() ?? "Completed",
       ),
       BadgeItem(
+        id: "week_warrior",
         title: "Week Warrior",
         description: "Practice for 7 consecutive days",
         points: 150,
         icon: LucideIcons.flame,
-        isUnlocked: true,
-        unlockedDate: "Mar 15, 2026",
+        isUnlocked: unlockedBadgeIds.contains("week_warrior") || streak >= 7,
+        unlockedDate: userData['streakDate']?.toString() ?? "Completed",
       ),
       BadgeItem(
+        id: "perfect_pitch",
         title: "Perfect Pitch",
         description: "Achieve 100% accuracy 5 times",
         points: 200,
         icon: LucideIcons.star,
-        isUnlocked: true,
-        unlockedDate: "Mar 18, 2026",
+        isUnlocked:
+            unlockedBadgeIds.contains("perfect_pitch") || accuracy >= 100,
+        unlockedDate: userData['perfectPitchDate']?.toString() ?? "Completed",
       ),
       BadgeItem(
+        id: "chord_master",
         title: "Chord Master",
         description: "Master 50 different chords",
         points: 500,
         icon: LucideIcons.lock,
-        isUnlocked: false,
+        isUnlocked:
+            unlockedBadgeIds.contains("chord_master") || chordsMastered >= 50,
+        unlockedDate: userData['chordMasterDate']?.toString(),
       ),
       BadgeItem(
+        id: "practice_legend",
         title: "Practice Legend",
         description: "Complete 100 practice sessions",
         points: 750,
         icon: LucideIcons.lock,
-        isUnlocked: false,
+        isUnlocked:
+            unlockedBadgeIds.contains("practice_legend") ||
+            sessionsCompleted >= 100,
+        unlockedDate: userData['practiceLegendDate']?.toString(),
       ),
       BadgeItem(
+        id: "speed_demon",
         title: "Speed Demon",
         description: "Play 10 chords in under 2 minutes",
         points: 1000,
         icon: LucideIcons.lock,
-        isUnlocked: false,
+        isUnlocked: unlockedBadgeIds.contains("speed_demon"),
+        unlockedDate: userData['speedDemonDate']?.toString(),
       ),
     ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<BadgeItem> badges = _generateBadges();
+
+    // Dynamically calculate metrics
+    final int unlockedCount = badges.where((b) => b.isUnlocked).length;
+    final int totalEarnedPoints = badges
+        .where((b) => b.isUnlocked)
+        .fold(0, (sum, badge) => sum + badge.points);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D121F), // Deep slate dark blue
@@ -84,7 +194,11 @@ class AchievementsScreen extends StatelessWidget {
             color: Colors.white,
             size: 20,
           ),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.of(context).pop();
+            }
+          },
         ),
         title: const Text(
           "Achievements",
@@ -98,7 +212,11 @@ class AchievementsScreen extends StatelessWidget {
       ),
       body: Column(
         children: [
-          _buildMetricsOverview(),
+          _buildMetricsOverview(
+            unlockedCount,
+            badges.length,
+            totalEarnedPoints,
+          ),
           const Divider(color: Color(0xFF1E293B), height: 1),
           Expanded(
             child: ListView.builder(
@@ -114,7 +232,11 @@ class AchievementsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricsOverview() {
+  Widget _buildMetricsOverview(
+    int unlockedCount,
+    int totalBadges,
+    int totalPoints,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 24.0, horizontal: 32.0),
       child: Row(
@@ -122,14 +244,14 @@ class AchievementsScreen extends StatelessWidget {
         children: [
           _buildMetricColumn(
             "Unlocked",
-            "3/6",
+            "$unlockedCount/$totalBadges",
             const LinearGradient(
               colors: [Color(0xFF22D3EE), Color(0xFFA855F7)],
             ),
           ),
           _buildMetricColumn(
             "Total Points",
-            "400",
+            "$totalPoints",
             const LinearGradient(colors: [Colors.white, Colors.white]),
           ),
         ],
@@ -145,7 +267,6 @@ class AchievementsScreen extends StatelessWidget {
           style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
         ),
         const SizedBox(height: 8),
-        // ShaderMask applies the gradient directly to the text characters
         ShaderMask(
           shaderCallback: (bounds) => gradient.createShader(
             Rect.fromLTWH(0, 0, bounds.width, bounds.height),
@@ -153,8 +274,7 @@ class AchievementsScreen extends StatelessWidget {
           child: Text(
             value,
             style: const TextStyle(
-              color: Colors
-                  .white, // This base color acts as the canvas for the gradient
+              color: Colors.white,
               fontSize: 28,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -166,7 +286,6 @@ class AchievementsScreen extends StatelessWidget {
   }
 
   Widget _buildBadgeCard(BadgeItem badge) {
-    // Purple neon style if unlocked, muted layout style if locked
     final Color borderColor = badge.isUnlocked
         ? const Color(0xFF5B21B6).withOpacity(0.6)
         : const Color(0xFF1E293B);
@@ -310,13 +429,10 @@ class AchievementsScreen extends StatelessWidget {
     );
   }
 
-  // Matches the colors used in the specific screenshot badges
   Color _getIconColor(String title) {
-    if (title.contains("First Steps"))
-      return const Color(0xFFF43F5E); // Pink guitar vibe
-    if (title.contains("Warrior"))
-      return const Color(0xFFFB923C); // Orange flame
-    if (title.contains("Pitch")) return const Color(0xFFFBBF24); // Yellow star
+    if (title.contains("First Steps")) return const Color(0xFFF43F5E);
+    if (title.contains("Warrior")) return const Color(0xFFFB923C);
+    if (title.contains("Pitch")) return const Color(0xFFFBBF24);
     return Colors.white;
   }
 }

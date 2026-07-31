@@ -12,6 +12,16 @@ class CompletedChord {
     required this.date,
     required this.accuracy,
   });
+
+  // 👈 Add this constructor
+  factory CompletedChord.fromMap(Map<String, dynamic> map) {
+    return CompletedChord(
+      name: map['name'] ?? '',
+      date: map['date'] ?? '',
+      accuracy:
+          (map['accuracy'] as num?)?.toInt() ?? 0, // Ensure accuracy is an int
+    );
+  }
 }
 
 class LearningChord {
@@ -24,6 +34,15 @@ class LearningChord {
     required this.attempts,
     required this.progress,
   });
+
+  // 👈 Add this constructor
+  factory LearningChord.fromMap(Map<String, dynamic> map) {
+    return LearningChord(
+      name: map['name'] ?? '',
+      attempts: map['attempts'] ?? 0,
+      progress: (map['progress'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 class PracticeSession {
@@ -40,102 +59,57 @@ class PracticeSession {
     required this.accuracy,
     required this.chordsCount,
   });
+
+  // 👈 Add this constructor
+  factory PracticeSession.fromMap(Map<String, dynamic> map) {
+    return PracticeSession(
+      day: map['day'] ?? '',
+      date: map['date'] ?? '',
+      duration: map['duration'] ?? '',
+      accuracy: (map['accuracy'] as num?)?.toInt() ?? 0,
+      chordsCount: (map['chordsCount'] as num?)?.toInt() ?? 0,
+    );
+  }
 }
 
 class ProgressScreen extends StatelessWidget {
-  const ProgressScreen({super.key});
+  final Map<String, dynamic> userData;
 
+  const ProgressScreen({super.key, required this.userData});
   @override
   Widget build(BuildContext context) {
-    // Mock data based on your exact UI image
-    final List<CompletedChord> completedChords = [
-      CompletedChord(
-        name: "C Major",
-        date: "Completed on Mar 14, 2026",
-        accuracy: 94,
-      ),
-      CompletedChord(
-        name: "G Major",
-        date: "Completed on Mar 16, 2026",
-        accuracy: 92,
-      ),
-      CompletedChord(
-        name: "D Major",
-        date: "Completed on Mar 17, 2026",
-        accuracy: 89,
-      ),
-      CompletedChord(
-        name: "E Minor",
-        date: "Completed on Mar 18, 2026",
-        accuracy: 91,
-      ),
-      CompletedChord(
-        name: "A Minor",
-        date: "Completed on Mar 19, 2026",
-        accuracy: 88,
-      ),
-    ];
+    // Safely extract arrays from your MongoDB document
+    final List<CompletedChord> completedChords =
+        (userData['completedChords'] as List<dynamic>?)
+            ?.map(
+              (item) => CompletedChord.fromMap(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList() ??
+        [];
 
-    final List<LearningChord> learningChords = [
-      LearningChord(name: "F Major", attempts: 8, progress: 58),
-      LearningChord(name: "B Minor", attempts: 12, progress: 62),
-      LearningChord(name: "D7", attempts: 4, progress: 67),
-    ];
+    final List<LearningChord> learningChords =
+        (userData['learningChords'] as List<dynamic>?)
+            ?.map(
+              (item) =>
+                  LearningChord.fromMap(Map<String, dynamic>.from(item as Map)),
+            )
+            .toList() ??
+        [];
 
-    final List<PracticeSession> practiceSessions = [
-      PracticeSession(
-        day: "Monday",
-        date: "Mar 18",
-        duration: "25 min",
-        accuracy: 78,
-        chordsCount: 5,
-      ),
-      PracticeSession(
-        day: "Tuesday",
-        date: "Mar 19",
-        duration: "30 min",
-        accuracy: 82,
-        chordsCount: 6,
-      ),
-      PracticeSession(
-        day: "Wednesday",
-        date: "Mar 20",
-        duration: "20 min",
-        accuracy: 75,
-        chordsCount: 4,
-      ),
-      PracticeSession(
-        day: "Thursday",
-        date: "Mar 21",
-        duration: "35 min",
-        accuracy: 88,
-        chordsCount: 7,
-      ),
-      PracticeSession(
-        day: "Friday",
-        date: "Mar 22",
-        duration: "40 min",
-        accuracy: 91,
-        chordsCount: 8,
-      ),
-      PracticeSession(
-        day: "Saturday",
-        date: "Mar 23",
-        duration: "45 min",
-        accuracy: 94,
-        chordsCount: 9,
-      ),
-      PracticeSession(
-        day: "Sunday",
-        date: "Mar 24",
-        duration: "30 min",
-        accuracy: 87,
-        chordsCount: 6,
-      ),
-    ];
+    final List<PracticeSession> practiceSessions =
+        (userData['practiceSessions'] as List<dynamic>?)
+            ?.map(
+              (item) => PracticeSession.fromMap(
+                Map<String, dynamic>.from(item as Map),
+              ),
+            )
+            .toList() ??
+        [];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF030712), // Dark background
+      backgroundColor: const Color(0xFF030712),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -171,7 +145,6 @@ class ProgressScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- SECTION 1: OVERALL STATISTICS ---
             _buildSectionHeader("Overall Statistics"),
             const SizedBox(height: 12),
             Container(
@@ -187,16 +160,16 @@ class ProgressScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _buildStatTile(
-                          "47",
-                          "Total Sessions",
-                          LucideIcons.calendar,
+                          "${userData['chordsMastered'] ?? 0}", // Maps to chordsMastered in User.js
+                          "Mastered Chords",
+                          LucideIcons.award,
                           const Color(0xFF38BDF8),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildStatTile(
-                          "Level 7",
+                          "Level ${userData['currentLevel'] ?? 1}", // Maps to currentLevel
                           "Current Level",
                           LucideIcons.trending_up,
                           const Color(0xFFA855F7),
@@ -209,7 +182,7 @@ class ProgressScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _buildStatTile(
-                          "3450",
+                          "${userData['totalPoints'] ?? 0}", // Maps to totalPoints
                           "Total Points",
                           LucideIcons.gem,
                           const Color(0xFFF43F5E),
@@ -218,9 +191,9 @@ class ProgressScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildStatTile(
-                          "87%",
+                          "${userData['accuracy'] ?? 0}%", // Maps to accuracy
                           "Avg. Accuracy",
-                          LucideIcons.award,
+                          LucideIcons.circle_check,
                           const Color(0xFF10B981),
                         ),
                       ),
@@ -231,8 +204,8 @@ class ProgressScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _buildTimeStreakTile(
-                          "Practice Time",
-                          "18.5 hours",
+                          "Current Chord",
+                          "${userData['currentChord'] ?? 'C Major'}", // Maps to currentChord
                           null,
                           const Color(0xFF0EA5E9),
                         ),
@@ -240,8 +213,8 @@ class ProgressScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _buildTimeStreakTile(
-                          "Best Streak",
-                          "12 days",
+                          "Streak",
+                          "${userData['streak'] ?? 0} days", // Maps to streak
                           "🔥",
                           Colors.white,
                         ),
