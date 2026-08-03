@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'guided_play_screen.dart'; // Import GuidedPlayScreen widget
 import 'request_song_screen.dart'; // Import RequestSongScreen widget
-import 'services/api.service.dart'; // Import ApiService
+import 'services/api_service.dart'; // Import ApiService
 
 enum Difficulty { all, beginner, intermediate }
 

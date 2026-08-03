@@ -24,7 +24,14 @@ class ChordConfig {
 
 class PracticeSessionScreen extends StatefulWidget {
   final String initialChord;
-  const PracticeSessionScreen({super.key, this.initialChord = "C Major"});
+  final VoidCallback?
+  onGoBack; // Callback to handle back navigation when embedded
+
+  const PracticeSessionScreen({
+    super.key,
+    this.initialChord = "C Major",
+    this.onGoBack,
+  });
 
   @override
   State<PracticeSessionScreen> createState() => _PracticeSessionScreenState();
@@ -137,7 +144,13 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
             color: Colors.white,
             size: 20,
           ),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              widget.onGoBack?.call();
+            }
+          },
         ),
         title: const Text(
           "Practice Session",
@@ -151,11 +164,18 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       ),
       body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+          // Wrapped in SingleChildScrollView so content can scroll freely on any screen height
+          SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              20,
+              10,
+              20,
+              100,
+            ), // Bottom padding accounts for bottom bar space
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const SizedBox(height: 10),
                 // --- 1. TOP METRICS HEADER ---
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -177,7 +197,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 24),
 
                 // --- 2. CHORD LABELS ---
                 const Text(
@@ -217,15 +237,14 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
                 // --- 3. GUITAR CHORD FRETBOARD DIAGRAM ---
-                Expanded(child: _buildChordFretboard()),
+                _buildChordFretboard(),
                 const SizedBox(height: 20),
 
                 // --- 4. BOTTOM ACTION CONTROL / FEEDBACK BOX ---
                 _buildBottomActionArea(),
-                const SizedBox(height: 36),
               ],
             ),
           ),
@@ -262,10 +281,12 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     );
   }
 
-  // Beautiful Fretboard Renderer using simple, precise stack metrics matching the diagram layout
+  // Beautiful Fretboard Renderer using precise stack metrics
   Widget _buildChordFretboard() {
     return Container(
       width: double.infinity,
+      height:
+          380, // Fixed height allows smooth scrolling without needing Expanded
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: const Color(0xFF0F172A).withOpacity(0.2),
@@ -506,7 +527,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
   // Dynamic layout changes based on user action states
   Widget _buildBottomActionArea() {
     if (_showPerfectFeedback) {
-      // Perfect green status container (Image 2)
+      // Perfect green status container
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(20),
@@ -537,7 +558,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       );
     }
 
-    // Standard detection CTA button (Image 1)
+    // Standard detection CTA button
     return Container(
       height: 54,
       width: double.infinity,
@@ -604,7 +625,9 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOut,
-      bottom: _showPointsToast ? 24 : -80,
+      bottom: _showPointsToast
+          ? 90
+          : -80, // Positioned safely above the bottom nav bar
       right: 20,
       child: Container(
         width: 180,

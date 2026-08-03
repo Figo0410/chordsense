@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'practice_session_screen.dart'; // Import  PracticeSessionScreen widget
+import 'services/api_service.dart';
+import 'practice_session_screen.dart';
 
 class LevelData {
   final int levelNumber;
   final String title;
-  final String difficulty; // Beginner, Intermediate, etc.
+  final String difficulty; // Beginner, Intermediate, Advanced, Master
   final List<String> chords;
   final int requiredPoints;
   final int rewardPoints;
@@ -25,7 +26,18 @@ class LevelData {
 }
 
 class LearningPathScreen extends StatefulWidget {
-  const LearningPathScreen({super.key});
+  final String? userId; // Optional Logged-in User ID
+  final int? initialPoints;
+  final int? initialCurrentLevel;
+  final List<dynamic>? initialCompletedLevels;
+
+  const LearningPathScreen({
+    super.key,
+    this.userId,
+    this.initialPoints,
+    this.initialCurrentLevel,
+    this.initialCompletedLevels,
+  });
 
   @override
   State<LearningPathScreen> createState() => _LearningPathScreenState();
@@ -41,56 +53,234 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
   ];
   String _selectedFilter = "All";
 
-  // Mock data representing your exact learning path progression
-  final List<LevelData> _levels = [
-    LevelData(
-      levelNumber: 1,
-      title: "Basic Foundation",
-      difficulty: "Beginner",
-      chords: ["C Major", "G Major"],
-      requiredPoints: 0,
-      rewardPoints: 100,
-      progress: 1.0,
-      accuracy: 92,
-    ),
-    LevelData(
-      levelNumber: 2,
-      title: "Major Chords",
-      difficulty: "Beginner",
-      chords: ["D Major", "A Major"],
-      requiredPoints: 100,
-      rewardPoints: 150,
-      progress: 1.0,
-      accuracy: 88,
-    ),
-    LevelData(
-      levelNumber: 3,
-      title: "Minor Chords",
-      difficulty: "Beginner",
-      chords: ["A Minor", "E Minor", "D Minor"],
-      requiredPoints: 250,
-      rewardPoints: 200,
-      progress: 0.65,
-    ),
-    LevelData(
-      levelNumber: 4,
-      title: "Chord Transitions",
-      difficulty: "Intermediate",
-      chords: ["C-G-D Transition", "Am-Em Switch"],
-      requiredPoints: 450,
-      rewardPoints: 250,
-      progress: 0.0,
-    ),
-    LevelData(
-      levelNumber: 5,
-      title: "Bar Chords",
-      difficulty: "Intermediate",
-      chords: ["F Major", "Bm"],
-      requiredPoints: 700,
-      rewardPoints: 300,
-      progress: null, // Locked
-    ),
-  ];
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<LevelData> _levels = [];
+
+  // User state variables fetched from MongoDB
+  int _userTotalPoints = 0;
+  int _userCurrentLevel = 1;
+  List<dynamic> _userCompletedLevels = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _userTotalPoints = widget.initialPoints ?? 0;
+    _userCurrentLevel = widget.initialCurrentLevel ?? 1;
+    _userCompletedLevels = widget.initialCompletedLevels ?? [];
+    _fetchLearningPathData();
+  }
+
+  // Fallback levels data in case API endpoint returns empty array or fails
+  List<Map<String, dynamic>> _getFallbackLevels() {
+    return [
+      {
+        "levelNumber": 1,
+        "title": "Basic Foundation",
+        "difficulty": "Beginner",
+        "chords": ["C Major", "G Major"],
+        "requiredPoints": 0,
+        "rewardPoints": 100,
+      },
+      {
+        "levelNumber": 2,
+        "title": "Major Chords",
+        "difficulty": "Beginner",
+        "chords": ["D Major", "A Major"],
+        "requiredPoints": 100,
+        "rewardPoints": 150,
+      },
+      {
+        "levelNumber": 3,
+        "title": "Minor Chords",
+        "difficulty": "Beginner",
+        "chords": ["E Minor", "A Minor"],
+        "requiredPoints": 250,
+        "rewardPoints": 200,
+      },
+      {
+        "levelNumber": 4,
+        "title": "Dominant 7ths",
+        "difficulty": "Intermediate",
+        "chords": ["G7", "C7", "D7"],
+        "requiredPoints": 450,
+        "rewardPoints": 250,
+      },
+      {
+        "levelNumber": 5,
+        "title": "Barre Chords Prep",
+        "difficulty": "Intermediate",
+        "chords": ["F Major", "B Minor"],
+        "requiredPoints": 700,
+        "rewardPoints": 300,
+      },
+      {
+        "levelNumber": 6,
+        "title": "Extended Chords",
+        "difficulty": "Intermediate",
+        "chords": ["Cmaj7", "Amaj7", "Em7"],
+        "requiredPoints": 1000,
+        "rewardPoints": 350,
+      },
+      {
+        "levelNumber": 7,
+        "title": "Suspended Chords",
+        "difficulty": "Advanced",
+        "chords": ["Dsus4", "Asus2", "Gsus4"],
+        "requiredPoints": 1350,
+        "rewardPoints": 400,
+      },
+      {
+        "levelNumber": 8,
+        "title": "Add & Diminished",
+        "difficulty": "Advanced",
+        "chords": ["Cadd9", "Fdim7"],
+        "requiredPoints": 1750,
+        "rewardPoints": 450,
+      },
+      {
+        "levelNumber": 9,
+        "title": "Jazz Harmonies",
+        "difficulty": "Master",
+        "chords": ["Dm9", "G13", "Cmaj9"],
+        "requiredPoints": 2200,
+        "rewardPoints": 500,
+      },
+      {
+        "levelNumber": 10,
+        "title": "Mastery Progression",
+        "difficulty": "Master",
+        "chords": ["F#m7b5", "B7alt", "E9"],
+        "requiredPoints": 2700,
+        "rewardPoints": 600,
+      },
+    ];
+  }
+
+  // Fetch real learning path levels & user progress from MongoDB
+  Future<void> _fetchLearningPathData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      int fetchedPoints = _userTotalPoints;
+      int fetchedCurrentLevel = _userCurrentLevel;
+      List<dynamic> fetchedCompletedLevels = _userCompletedLevels;
+
+      // 1. Fetch User Profile Data if userId present
+      String searchUserId = widget.userId ?? "";
+
+      if (searchUserId.isNotEmpty) {
+        try {
+          final responseData = await ApiService.getUserProfile(searchUserId);
+          final userData =
+              responseData['user'] ?? responseData['data'] ?? responseData;
+
+          fetchedPoints =
+              (userData['totalPoints'] as num?)?.toInt() ?? fetchedPoints;
+          fetchedCurrentLevel =
+              (userData['currentLevel'] as num?)?.toInt() ??
+              fetchedCurrentLevel;
+          fetchedCompletedLevels =
+              userData['completedLevels'] ?? fetchedCompletedLevels;
+        } catch (_) {
+          // Defaults handled gracefully if profile request fails
+        }
+      }
+
+      // 2. Fetch Levels from MongoDB learning_paths collection
+      List<dynamic> levelsData = [];
+      try {
+        levelsData = await ApiService.getLearningPaths();
+      } catch (_) {
+        levelsData = [];
+      }
+
+      // Fallback to static structure if backend list is empty
+      if (levelsData.isEmpty) {
+        levelsData = _getFallbackLevels();
+      }
+
+      List<LevelData> loadedLevels = [];
+
+      for (var item in levelsData) {
+        int levelNum =
+            (item['levelNumber'] ??
+                    item['level_number'] ??
+                    item['level'] as num?)
+                ?.toInt() ??
+            int.tryParse(item['levelNumber']?.toString() ?? '1') ??
+            1;
+
+        int requiredPoints = (item['requiredPoints'] as num?)?.toInt() ?? 0;
+
+        List<String> chordList = [];
+        if (item['chords'] is List) {
+          chordList = List<String>.from(
+            item['chords'].map((c) => c.toString()),
+          );
+        }
+
+        // REAL DATABASE-DRIVEN PROGRESSION
+        double? progress;
+        int? accuracy;
+
+        // Check key variations from MongoDB completedLevels structure
+        var matchedCompleted = fetchedCompletedLevels.firstWhere((cl) {
+          if (cl is! Map) return false;
+          int clNum =
+              (cl['levelNumber'] ?? cl['level_number'] ?? cl['level'] as num?)
+                  ?.toInt() ??
+              -1;
+          return clNum == levelNum;
+        }, orElse: () => null);
+
+        if (matchedCompleted != null) {
+          progress = (matchedCompleted['progress'] as num?)?.toDouble() ?? 1.0;
+          accuracy = (matchedCompleted['accuracy'] as num?)?.toInt();
+        } else if (levelNum == fetchedCurrentLevel) {
+          progress = 0.0; // Current unlearned level starts at 0%
+        } else if (levelNum < fetchedCurrentLevel ||
+            fetchedPoints >= requiredPoints) {
+          // If level is past current level OR user has enough total points -> unlock
+          progress = 0.0;
+        } else {
+          progress = null; // Future levels remain locked
+        }
+
+        loadedLevels.add(
+          LevelData(
+            levelNumber: levelNum,
+            title: item['title'] ?? "Level $levelNum",
+            difficulty: item['difficulty'] ?? "Beginner",
+            chords: chordList.isEmpty ? ["C Major", "G Major"] : chordList,
+            requiredPoints: requiredPoints,
+            rewardPoints: (item['rewardPoints'] as num?)?.toInt() ?? 100,
+            progress: progress,
+            accuracy: accuracy,
+          ),
+        );
+      }
+
+      // Sort by level number ascending
+      loadedLevels.sort((a, b) => a.levelNumber.compareTo(b.levelNumber));
+
+      setState(() {
+        _userTotalPoints = fetchedPoints;
+        _userCurrentLevel = fetchedCurrentLevel;
+        _userCompletedLevels = fetchedCompletedLevels;
+        _levels = loadedLevels;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll("Exception: ", "");
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +289,8 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
       if (_selectedFilter == "All") return true;
       return level.difficulty.toLowerCase() == _selectedFilter.toLowerCase();
     }).toList();
+
+    int completedCount = _levels.where((l) => l.progress == 1.0).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFF030712), // Dark Slate base
@@ -140,7 +332,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                 Expanded(
                   child: _buildMetricCard(
                     "Your Points",
-                    "3450",
+                    "$_userTotalPoints",
                     const Color(0xFFA855F7),
                   ),
                 ),
@@ -148,7 +340,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                 Expanded(
                   child: _buildMetricCard(
                     "Levels Completed",
-                    "2/10",
+                    "$completedCount/${_levels.length}",
                     const Color(0xFF0EA5E9),
                   ),
                 ),
@@ -212,16 +404,58 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
           ),
           const SizedBox(height: 20),
 
-          // --- 3. LEVEL CARD LIST ---
+          // --- 3. LEVEL CARD LIST / LOADING STATE ---
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-              itemCount: filteredLevels.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 16),
-              itemBuilder: (context, index) {
-                return _buildLevelCard(filteredLevels[index]);
-              },
-            ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: Color(0xFF38BDF8)),
+                  )
+                : _errorMessage != null
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          LucideIcons.triangle_alert,
+                          color: Color(0xFFEF4444),
+                          size: 40,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Color(0xFF94A3B8),
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: _fetchLearningPathData,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF3B82F6),
+                          ),
+                          child: const Text("Retry"),
+                        ),
+                      ],
+                    ),
+                  )
+                : filteredLevels.isEmpty
+                ? const Center(
+                    child: Text(
+                      "No levels found for this filter.",
+                      style: TextStyle(color: Color(0xFF64748B)),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    itemCount: filteredLevels.length,
+                    separatorBuilder: (context, index) =>
+                        const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      return _buildLevelCard(filteredLevels[index]);
+                    },
+                  ),
           ),
         ],
       ),
@@ -345,14 +579,17 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            "Level ${level.levelNumber}: ${level.title}",
-                            style: TextStyle(
-                              color: isLocked
-                                  ? const Color(0xFF475569)
-                                  : Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: Text(
+                              "Level ${level.levelNumber}: ${level.title}",
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isLocked
+                                    ? const Color(0xFF475569)
+                                    : Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                           if (isCompleted && level.accuracy != null)

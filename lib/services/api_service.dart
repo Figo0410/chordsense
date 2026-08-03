@@ -24,18 +24,15 @@ class ApiService {
       body: jsonEncode({'username': username, 'password': password}),
     );
 
-    // 1. Success case
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
     }
 
-    // 2. Safe error handling: check if response is actually JSON before decoding
     final contentType = response.headers['content-type'] ?? '';
     if (contentType.contains('application/json')) {
       final error = jsonDecode(response.body);
       throw Exception(error['message'] ?? 'Failed to log in');
     } else {
-      // Server returned HTML (e.g., 404 Not Found or 500 Internal Error)
       throw Exception(
         'Server returned status ${response.statusCode}. Check if route /api/auth/login exists on your backend.',
       );
@@ -62,7 +59,6 @@ class ApiService {
       return jsonDecode(response.body);
     }
 
-    // Safe JSON check for error response
     final contentType = response.headers['content-type'] ?? '';
     if (contentType.contains('application/json')) {
       final error = jsonDecode(response.body);
@@ -135,6 +131,52 @@ class ApiService {
       return jsonDecode(response.body);
     } else {
       throw Exception('Failed to fetch songs from server.');
+    }
+  }
+
+  // Fetch all learning path levels from MongoDB
+  static Future<List<dynamic>> getLearningPaths() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/learning-path'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch learning path from server.');
+    }
+  }
+
+  // Fetch logged-in user profile & progress data from MongoDB
+  static Future<Map<String, dynamic>> getUserProfile(String userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/auth/user/$userId'),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch user progress.');
+    }
+  }
+
+  // Update user's tuner completion status in MongoDB
+  static Future<Map<String, dynamic>> updateTunerStatus(
+    String userId,
+    bool hasCompletedTuner,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/auth/user/$userId/tuner-status'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'hasCompletedTuner': hasCompletedTuner}),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to update tuner status.');
     }
   }
 }

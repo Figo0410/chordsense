@@ -1,4 +1,3 @@
-// routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
@@ -37,6 +36,7 @@ router.post('/register', async (req, res) => {
       accuracy: 0,
       streak: 0,
       chordsMastered: 0,
+      hasCompletedTuner: false, // Default for new users
 
       // AUTOMATIC PROGRESS DATA FOR NEW USERS:
       completedChords: [], // Starts empty until they pass a chord
@@ -66,6 +66,7 @@ router.post('/register', async (req, res) => {
         accuracy: newUser.accuracy,
         streak: newUser.streak,
         chordsMastered: newUser.chordsMastered,
+        hasCompletedTuner: newUser.hasCompletedTuner,
         completedChords: newUser.completedChords,
         learningChords: newUser.learningChords,
         practiceSessions: newUser.practiceSessions,
@@ -88,7 +89,7 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
-    // Return full user data including progress arrays for Flutter
+    // Return full user data including tuner state and progress arrays for Flutter
     res.json({
       _id: user._id,
       username: user.username,
@@ -102,6 +103,7 @@ router.post('/login', async (req, res) => {
       accuracy: user.accuracy ?? 0,
       streak: user.streak ?? 0,
       chordsMastered: user.chordsMastered ?? 0,
+      hasCompletedTuner: user.hasCompletedTuner ?? false, // Returned to Flutter
       completedChords: user.completedChords ?? [],
       learningChords: user.learningChords ?? [],
       practiceSessions: user.practiceSessions ?? [],
@@ -228,9 +230,7 @@ router.get('/leaderboard', async (req, res) => {
   }
 });
 
-
 // 6. GET USER PROFILE ROUTE
-// GET User Profile (e.g., /api/user/profile/:id or /api/user/:id)
 // GET /api/auth/profile/:id
 router.get('/profile/:id', async (req, res) => {
   try {
@@ -240,7 +240,6 @@ router.get('/profile/:id', async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // 👈 RUN BADGE CHECK & REASSIGN THE UPDATED USER
     user = await checkAndAwardBadges(user);
 
     res.json(user);
@@ -249,4 +248,21 @@ router.get('/profile/:id', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// 7. PATCH USER TUNER STATUS ROUTE
+router.patch('/user/:id/tuner-status', async (req, res) => {
+  try {
+    const { hasCompletedTuner } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { hasCompletedTuner },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

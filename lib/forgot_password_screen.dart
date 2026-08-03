@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import '../services/api.service.dart';
+import 'services/api_service.dart';
 
 import 'new_password_screen.dart'; // Import the NewPasswordScreen
 

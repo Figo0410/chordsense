@@ -1,4 +1,3 @@
-// models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -53,11 +52,24 @@ const userSchema = new mongoose.Schema({
     default: 0 
   },
   
+  // Real data flag to mark tuner completion state
+  hasCompletedTuner: {
+    type: Boolean,
+    default: false
+  },
+
   // Array to track unlocked badge IDs for automatic point rewards
   unlockedBadges: { 
     type: [String], 
     default: [] 
   },
+
+  // TRACK REAL COMPLETED LEVELS WITH ACCURACY & PROGRESS
+  completedLevels: [{
+    levelNumber: Number,
+    progress: Number, // e.g. 1.0 for completed, 0.5 for 50%
+    accuracy: Number
+  }],
 
   // ARRAYS MATCHING FLUTTER UI:
   completedChords: [{

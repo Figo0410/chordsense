@@ -5,7 +5,7 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:http/http.dart' as http;
 import 'achievements_screen.dart';
 import 'login_screen.dart';
-import 'services/api.service.dart';
+import 'services/api_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final Map<String, dynamic>? userProfileData;

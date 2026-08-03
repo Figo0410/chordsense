@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_lucide/flutter_lucide.dart'; // Or use standard Lucide icons based on your setup
+import 'package:flutter_lucide/flutter_lucide.dart';
+import 'services/api_service.dart';
 
 class GuitarString {
   final int number;
@@ -18,14 +19,17 @@ class GuitarString {
 }
 
 class TunerScreen extends StatefulWidget {
-  const TunerScreen({super.key});
+  final String? userId;
+  final VoidCallback? onTuningComplete;
+
+  const TunerScreen({super.key, this.userId, this.onTuningComplete});
 
   @override
   State<TunerScreen> createState() => _TunerScreenState();
 }
 
 class _TunerScreenState extends State<TunerScreen> {
-  // 1. Acoustic Guitar Standard Frequencies (Highly Accurate)
+  // 1. Acoustic Guitar Standard Frequencies
   final List<GuitarString> _strings = [
     GuitarString(number: 1, noteName: "E", label: "High E", frequency: 329.63),
     GuitarString(number: 2, noteName: "B", label: "B", frequency: 246.94),
@@ -37,30 +41,72 @@ class _TunerScreenState extends State<TunerScreen> {
 
   int _selectedStringIndex = 0; // Starts with High E active
   bool _isListening = true;
+  bool _isSaving = false;
 
-  // Simulated deviation value (-50 to +50 cents range)
-  // 0 is "PERFECT". The image shows +4.0 cents (slightly sharp)
   double _currentDeviation = 4.0;
 
   int get _tunedCount => _strings.where((s) => s.isTuned).length;
+
+  Future<void> _completeTuningProcess() async {
+    if (widget.userId == null) {
+      if (widget.onTuningComplete != null) widget.onTuningComplete!();
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      await ApiService.updateTunerStatus(widget.userId!, true);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Guitar tuned successfully! Practice is unlocked."),
+            backgroundColor: Color(0xFF10B981),
+          ),
+        );
+      }
+      if (widget.onTuningComplete != null) {
+        widget.onTuningComplete!();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Notice: Tuned locally ($e)"),
+            backgroundColor: const Color(0xFFF97316),
+          ),
+        );
+      }
+      if (widget.onTuningComplete != null) {
+        widget.onTuningComplete!();
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final activeString = _strings[_selectedStringIndex];
 
-    // Determine tuning state string based on deviation
     String statusText = "TUNING...";
     Color statusColor = Colors.white;
     if (_isListening) {
       if (_currentDeviation.abs() <= 2.0) {
         statusText = "✓ IN TUNE";
-        statusColor = const Color(0xFF10B981); // Emerald Green
+        statusColor = const Color(0xFF10B981);
       } else if (_currentDeviation < -2.0) {
         statusText = "TOO FLAT";
-        statusColor = const Color(0xFFEF4444); // Red
+        statusColor = const Color(0xFFEF4444);
       } else {
         statusText = "TOO SHARP";
-        statusColor = const Color(0xFFF97316); // Orange
+        statusColor = const Color(0xFFF97316);
       }
     } else {
       statusText = "PAUSED";
@@ -68,7 +114,7 @@ class _TunerScreenState extends State<TunerScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF030712), // Deep slate-950 base
+      backgroundColor: const Color(0xFF030712),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -99,12 +145,7 @@ class _TunerScreenState extends State<TunerScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(
-          20,
-          10,
-          20,
-          100,
-        ), // Extra bottom padding for floating bar overlap
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -112,7 +153,7 @@ class _TunerScreenState extends State<TunerScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFF071B2F), // Dark blue tint
+                color: const Color(0xFF071B2F),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFF0E3A5F)),
               ),
@@ -150,7 +191,7 @@ class _TunerScreenState extends State<TunerScreen> {
             ),
             const SizedBox(height: 18),
 
-            // --- 2. TUNER CALIBRATION BOARD (THE METRIC BAR) ---
+            // --- 2. TUNER CALIBRATION BOARD ---
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -158,7 +199,7 @@ class _TunerScreenState extends State<TunerScreen> {
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: _isListening && _currentDeviation.abs() <= 2.0
-                      ? const Color(0xFF10B981) // Green border if perfect
+                      ? const Color(0xFF10B981)
                       : const Color(0xFF1E293B),
                   width: 1.5,
                 ),
@@ -184,10 +225,8 @@ class _TunerScreenState extends State<TunerScreen> {
                   ),
                   const SizedBox(height: 18),
 
-                  // The Needle Slider Bar
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      // Map deviation (-50 to +50 cents) to a normalized fraction (0.0 to 1.0)
                       double normalizedValue = ((_currentDeviation + 50) / 100)
                           .clamp(0.0, 1.0);
                       double needlePosition =
@@ -196,7 +235,6 @@ class _TunerScreenState extends State<TunerScreen> {
                       return Stack(
                         alignment: Alignment.center,
                         children: [
-                          // Base horizontal bar gradient background
                           Container(
                             height: 24,
                             width: double.infinity,
@@ -235,19 +273,13 @@ class _TunerScreenState extends State<TunerScreen> {
                               ],
                             ),
                           ),
-
-                          // Perfect Center Marker Block
                           Container(
                             width: 3,
                             height: 30,
                             color: const Color(0xFF64748B),
                           ),
-
-                          // Floating Needle indicator
                           Positioned(
-                            left:
-                                needlePosition -
-                                6, // Centered on calculated spot
+                            left: needlePosition - 6,
                             child: Container(
                               width: 12,
                               height: 28,
@@ -255,8 +287,8 @@ class _TunerScreenState extends State<TunerScreen> {
                                 color:
                                     _isListening &&
                                         _currentDeviation.abs() <= 2.0
-                                    ? const Color(0xFF10B981) // Green
-                                    : const Color(0xFFF97316), // Orange
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFFF97316),
                                 borderRadius: BorderRadius.circular(6),
                                 boxShadow: [
                                   BoxShadow(
@@ -276,8 +308,6 @@ class _TunerScreenState extends State<TunerScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-
-                  // Cents Indicators
                   const Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -308,8 +338,6 @@ class _TunerScreenState extends State<TunerScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-
-                  // Deviation Label
                   Column(
                     children: [
                       const Text(
@@ -359,13 +387,10 @@ class _TunerScreenState extends State<TunerScreen> {
                   onTap: () {
                     setState(() {
                       _selectedStringIndex = index;
-                      // Simulate different pitches when clicking through strings
-                      if (index == 0)
-                        _currentDeviation =
-                            4.0; // Slightly sharp (matching original image)
-                      if (index == 1) _currentDeviation = -12.5; // Flat
-                      if (index == 2) _currentDeviation = 0.0; // Perfect
-                      if (index == 3) _currentDeviation = 1.2; // Perfect
+                      if (index == 0) _currentDeviation = 4.0;
+                      if (index == 1) _currentDeviation = -12.5;
+                      if (index == 2) _currentDeviation = 0.0;
+                      if (index == 3) _currentDeviation = 1.2;
                       if (index >= 4) _currentDeviation = -6.0;
                     });
                   },
@@ -389,7 +414,6 @@ class _TunerScreenState extends State<TunerScreen> {
                       children: [
                         Row(
                           children: [
-                            // Circular Indicator Number
                             Container(
                               width: 28,
                               height: 28,
@@ -418,7 +442,6 @@ class _TunerScreenState extends State<TunerScreen> {
                               ),
                             ),
                             const SizedBox(width: 14),
-                            // String Label & Frequency Info
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
@@ -444,7 +467,6 @@ class _TunerScreenState extends State<TunerScreen> {
                             ),
                           ],
                         ),
-                        // Right-Hand Status Indicator
                         isSelected
                             ? Row(
                                 children: [
@@ -484,7 +506,7 @@ class _TunerScreenState extends State<TunerScreen> {
             ),
             const SizedBox(height: 18),
 
-            // --- 4. START/STOP LISTENING BUTTON ---
+            // --- 4. START/STOP BUTTON ---
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -519,7 +541,7 @@ class _TunerScreenState extends State<TunerScreen> {
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
-                color: const Color(0xFF011A13), // Deep dark green shade
+                color: const Color(0xFF011A13),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: const Color(0xFF064E3B)),
               ),
@@ -559,7 +581,6 @@ class _TunerScreenState extends State<TunerScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Segmented String Progress Bar (6 Custom Slots)
                   Row(
                     children: List.generate(6, (index) {
                       bool isSegmentTuned = _strings[index].isTuned;
@@ -579,7 +600,6 @@ class _TunerScreenState extends State<TunerScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Mark Active String as Tuned (Helps simulate progression)
                   SizedBox(
                     width: double.infinity,
                     height: 44,
@@ -590,20 +610,39 @@ class _TunerScreenState extends State<TunerScreen> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _strings[_selectedStringIndex].isTuned =
-                              !_strings[_selectedStringIndex].isTuned;
-                        });
-                      },
-                      icon: const Icon(
-                        LucideIcons.check,
-                        color: Color(0xFF10B981),
-                        size: 16,
-                      ),
-                      label: const Text(
-                        "Mark as Tuned",
-                        style: TextStyle(
+                      onPressed: _isSaving
+                          ? null
+                          : () {
+                              setState(() {
+                                _strings[_selectedStringIndex].isTuned =
+                                    !_strings[_selectedStringIndex].isTuned;
+                              });
+
+                              if (_tunedCount == 6) {
+                                _completeTuningProcess();
+                              }
+                            },
+                      icon: _isSaving
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF10B981),
+                              ),
+                            )
+                          : const Icon(
+                              LucideIcons.check,
+                              color: Color(0xFF10B981),
+                              size: 16,
+                            ),
+                      label: Text(
+                        _isSaving
+                            ? "Saving..."
+                            : (_strings[_selectedStringIndex].isTuned
+                                  ? "Unmark String"
+                                  : "Mark as Tuned"),
+                        style: const TextStyle(
                           color: Color(0xFF10B981),
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -671,7 +710,6 @@ class _TunerScreenState extends State<TunerScreen> {
   }
 }
 
-// Custom bullet-point helper for cleanly laid out advice lines
 class BulletPoint extends StatelessWidget {
   final String text;
   const BulletPoint({super.key, required this.text});

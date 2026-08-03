@@ -1,7 +1,7 @@
 import 'package:chordsense/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'tuner_screen.dart'; // ImportTunerScreen widget
+import 'tuner_screen.dart'; // Import TunerScreen widget
 import 'learning_path_screen.dart'; // Import learning path screen
 import 'practice_session_screen.dart'; // Import PracticeSessionScreen widget
 import 'progress_screen.dart'; // Import ProgressScreen widget
@@ -33,7 +33,25 @@ class _UserDashboardState extends State<UserDashboard> {
   int streak = 0;
   int chordsMastered = 0;
 
+  bool hasCompletedTuner = false; // REAL DATA GUARD FOR TUNER REQUIREMENT
+
   Map<String, dynamic> userProfileData = {};
+
+  // Helper method to safely extract raw String ID whether it's String or Map ({$oid: "..."})
+  String? _getUserId() {
+    if (userProfileData.containsKey('_id')) {
+      final idVal = userProfileData['_id'];
+      if (idVal is String) return idVal;
+      if (idVal is Map && idVal.containsKey('\$oid')) {
+        return idVal['\$oid'].toString();
+      }
+      return idVal.toString();
+    }
+    if (userProfileData.containsKey('id')) {
+      return userProfileData['id']?.toString();
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -70,16 +88,28 @@ class _UserDashboardState extends State<UserDashboard> {
       streak = (userData['streak'] as num?)?.toInt() ?? 0;
       chordsMastered = (userData['chordsMastered'] as num?)?.toInt() ?? 0;
 
+      // Extract real tuner completion status (defaults to false only if missing)
+      hasCompletedTuner = userData['hasCompletedTuner'] == true;
+
       // DYNAMIC CALCULATION:
-      // Calculates percentage from points instead of relying on stagnant DB value.
       if (nextLevelPoints > 0) {
         progressPercent = (totalPoints / nextLevelPoints) * 100;
-        // Clamp between 0.0 and 100.0 just in case totalPoints exceeds nextLevelPoints
         progressPercent = progressPercent.clamp(0.0, 100.0);
       } else {
         progressPercent = 0.0;
       }
     });
+  }
+
+  // Helper method to check if user can proceed to practice or must see the tuning modal
+  void _handlePracticeAccess() {
+    if (hasCompletedTuner) {
+      setState(() {
+        _currentIndex = 1; // Direct to Practice tab
+      });
+    } else {
+      _showTuningModal(context);
+    }
   }
 
   @override
@@ -107,21 +137,36 @@ class _UserDashboardState extends State<UserDashboard> {
   Widget _buildBodyContent() {
     switch (_currentIndex) {
       case 0:
-        return _buildHomeDashboard(); // Your current home dashboard content
+        return _buildHomeDashboard();
       case 1:
-        return const LearningPathScreen(); // Your learning path screen
+        return PracticeSessionScreen(
+          onGoBack: () {
+            setState(() {
+              _currentIndex = 0; // Switch back to Home tab
+            });
+          },
+        );
       case 2:
-        return const TunerScreen();
+        return TunerScreen(
+          userId: _getUserId(),
+          onTuningComplete: () {
+            setState(() {
+              hasCompletedTuner = true;
+              userProfileData['hasCompletedTuner'] = true;
+              _currentIndex = 1; // Direct to practice tab upon completing tuner
+            });
+          },
+        );
       case 3:
         return RankingScreen(
-          userId: userProfileData['_id']?.toString(),
+          userId: _getUserId(),
           username: userProfileData['username']?.toString(),
           onGoToHome: () {
             setState(() {
               _currentIndex = 0;
             });
           },
-        ); // Your ranking screen
+        );
       case 4:
         return ProfileScreen(userProfileData: userProfileData);
       default:
@@ -134,26 +179,19 @@ class _UserDashboardState extends State<UserDashboard> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor:
-          Colors.transparent, // Keeps the underlying container rounded
+      backgroundColor: Colors.transparent,
       builder: (context) {
         return Container(
-          height:
-              MediaQuery.of(context).size.height *
-              0.85, // Height matching the design
+          height: MediaQuery.of(context).size.height * 0.85,
           margin: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF0F172A), // Dark slate blue background
+            color: const Color(0xFF0F172A),
             borderRadius: BorderRadius.circular(28),
-            border: Border.all(
-              color: const Color(0xFFF97316),
-              width: 1.5,
-            ), // Distinct orange border
+            border: Border.all(color: const Color(0xFFF97316), width: 1.5),
           ),
           child: Column(
             children: [
               const SizedBox(height: 16),
-              // Small drag handle at the top
               Container(
                 width: 40,
                 height: 4,
@@ -162,7 +200,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
@@ -171,7 +208,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                   child: Column(
                     children: [
-                      // --- 1. NEW LEARNER BADGE ---
                       Align(
                         alignment: Alignment.topLeft,
                         child: Container(
@@ -180,7 +216,7 @@ class _UserDashboardState extends State<UserDashboard> {
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF97316), // Orange
+                            color: const Color(0xFFF97316),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -205,8 +241,6 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // --- 2. FLOATING GLOW MUSIC ICON ---
                       Container(
                         width: 100,
                         height: 100,
@@ -232,8 +266,6 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ),
                       const SizedBox(height: 18),
-
-                      // --- 3. WELCOME TITLE ---
                       const Text(
                         "Welcome to ChordSense!",
                         style: TextStyle(
@@ -245,14 +277,10 @@ class _UserDashboardState extends State<UserDashboard> {
                       const SizedBox(height: 4),
                       const Text("🎸", style: TextStyle(fontSize: 22)),
                       const SizedBox(height: 20),
-
-                      // --- 4. EXPLANATION CONTAINER ---
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color: const Color(
-                            0xFF2D1B18,
-                          ), // Deep warm brown tint
+                          color: const Color(0xFF2D1B18),
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: const Color(0xFFEA580C).withOpacity(0.4),
@@ -305,9 +333,6 @@ class _UserDashboardState extends State<UserDashboard> {
                               ],
                             ),
                             const SizedBox(height: 16),
-
-                            // --- PROGRESS STEPS ---
-                            // Step 1: Active Complete Tuner
                             Row(
                               children: [
                                 Container(
@@ -349,7 +374,6 @@ class _UserDashboardState extends State<UserDashboard> {
                                 ),
                               ),
                             ),
-                            // Step 2: Locked Practice
                             Row(
                               children: [
                                 Container(
@@ -390,18 +414,13 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // --- 5. RED/ORANGE GRADIENT BUTTON ---
                       Container(
                         height: 50,
                         width: double.infinity,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(10),
                           gradient: const LinearGradient(
-                            colors: [
-                              Color(0xFFEA580C),
-                              Color(0xFFDC2626),
-                            ], // Deep Orange to Red
+                            colors: [Color(0xFFEA580C), Color(0xFFDC2626)],
                             begin: Alignment.centerLeft,
                             end: Alignment.centerRight,
                           ),
@@ -417,27 +436,19 @@ class _UserDashboardState extends State<UserDashboard> {
                           color: Colors.transparent,
                           child: InkWell(
                             onTap: () {
-                              // 1. First, this closes the warning modal sheet
                               Navigator.pop(context);
-
-                              // 2. Second, this immediately opens your practice screen!
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const PracticeSessionScreen(),
-                                ),
-                              );
+                              // Redirect user directly to the Tuner Screen tab to finish tuning
+                              setState(() {
+                                _currentIndex = 2;
+                              });
                             },
-                            child: Container(
-                              child: Center(
-                                child: const Text(
-                                  "Complete Tuner Setup",
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                            child: const Center(
+                              child: Text(
+                                "Complete Tuner Setup",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
@@ -445,8 +456,6 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ),
                       const SizedBox(height: 14),
-
-                      // --- 6. FOOTER TEXT ---
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: const [
@@ -476,14 +485,12 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // Move your scrollable dashboard content here
   Widget _buildHomeDashboard() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 120), // Prevent nav bar overlaps
+      padding: const EdgeInsets.only(bottom: 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- HEADER AREA ---
           Container(
             padding: const EdgeInsets.fromLTRB(24, 55, 24, 24),
             decoration: const BoxDecoration(
@@ -515,13 +522,12 @@ class _UserDashboardState extends State<UserDashboard> {
                         const Text(
                           "Ready to practice today?",
                           style: TextStyle(
-                            color: Color(0xFF64748B), // Slate-500
+                            color: Color(0xFF64748B),
                             fontSize: 13,
                           ),
                         ),
                       ],
                     ),
-                    // Glowing Music Badge
                     Container(
                       width: 48,
                       height: 48,
@@ -549,18 +555,12 @@ class _UserDashboardState extends State<UserDashboard> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
-                // --- LEVEL & POINTS CARD ---
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: const Color(
-                      0xFF0F172A,
-                    ).withOpacity(0.4), // Slate-900/40
+                    color: const Color(0xFF0F172A).withOpacity(0.4),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF1E293B),
-                    ), // Slate-800
+                    border: Border.all(color: const Color(0xFF1E293B)),
                   ),
                   child: Column(
                     children: [
@@ -630,16 +630,13 @@ class _UserDashboardState extends State<UserDashboard> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Progress bar
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
                           value: progressPercent / 100,
                           minHeight: 6,
                           backgroundColor: const Color(0xFF1E293B),
-                          color: const Color(
-                            0xFF6366F1,
-                          ), // Beautiful Indigo/Violet progress color
+                          color: const Color(0xFF6366F1),
                         ),
                       ),
                     ],
@@ -648,19 +645,16 @@ class _UserDashboardState extends State<UserDashboard> {
               ],
             ),
           ),
-
-          // --- MAIN VIEWPORT BODY ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. STATS ROW
                 Row(
                   children: [
                     _buildStatCard(
                       "Accuracy",
-                      "$accuracy",
+                      "$accuracy%",
                       LucideIcons.target,
                       const Color(0xFF22D3EE),
                     ),
@@ -681,8 +675,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
-                // 2. QUICK ACTIONS SECTION
                 const Text(
                   "Quick Actions",
                   style: TextStyle(
@@ -692,17 +684,12 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Start Practice Gradient Button
                 Container(
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     gradient: const LinearGradient(
-                      colors: [
-                        Color(0xFF06B6D4),
-                        Color(0xFF9333EA),
-                      ], // Cyan to purple
+                      colors: [Color(0xFF06B6D4), Color(0xFF9333EA)],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                     ),
@@ -711,7 +698,7 @@ class _UserDashboardState extends State<UserDashboard> {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () => _showTuningModal(context),
+                      onTap: _handlePracticeAccess,
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -751,8 +738,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Triple Action Rows (Progress, Ranking, Badges)
                 Row(
                   children: [
                     _buildMiniActionButton(
@@ -769,7 +754,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         );
                       },
                     ),
-                    const SizedBox(width: 25),
+                    const SizedBox(width: 12),
                     _buildMiniActionButton(
                       "Ranking",
                       LucideIcons.trophy,
@@ -781,7 +766,7 @@ class _UserDashboardState extends State<UserDashboard> {
                             builder: (context) => const RankingScreen(),
                             settings: RouteSettings(
                               arguments: {
-                                'userId': userProfileData['_id'],
+                                'userId': _getUserId(),
                                 'username': userProfileData['username'],
                               },
                             ),
@@ -789,7 +774,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         );
                       },
                     ),
-                    const SizedBox(width: 25),
+                    const SizedBox(width: 12),
                     _buildMiniActionButton(
                       "Badges",
                       LucideIcons.award,
@@ -808,8 +793,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   ],
                 ),
                 const SizedBox(height: 12),
-
-                // Wide Action Rows
                 _buildWideActionRow(
                   "Learning Path",
                   "View all levels & chords",
@@ -819,7 +802,14 @@ class _UserDashboardState extends State<UserDashboard> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const LearningPathScreen(),
+                        builder: (context) => LearningPathScreen(
+                          userId: _getUserId(),
+                          initialPoints: totalPoints,
+                          initialCurrentLevel: currentLevel,
+                          initialCompletedLevels:
+                              userProfileData['completedLevels']
+                                  as List<dynamic>?,
+                        ),
                       ),
                     );
                   },
@@ -840,8 +830,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   },
                 ),
                 const SizedBox(height: 28),
-
-                // 3. CURRENTLY LEARNING SECTION
                 const Text(
                   "Currently Learning",
                   style: TextStyle(
@@ -920,7 +908,6 @@ class _UserDashboardState extends State<UserDashboard> {
                         ],
                       ),
                       const SizedBox(height: 20),
-                      // Pink/Purple Gradient Continue Button
                       Container(
                         height: 44,
                         width: double.infinity,
@@ -936,7 +923,7 @@ class _UserDashboardState extends State<UserDashboard> {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(10),
-                            onTap: () => _showTuningModal(context),
+                            onTap: _handlePracticeAccess,
                             child: const Center(
                               child: Text(
                                 "Continue Learning",
@@ -954,8 +941,6 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                 ),
                 const SizedBox(height: 28),
-
-                // 4. NEXT MILESTONE SECTION
                 const Text(
                   "Next Milestone",
                   style: TextStyle(
@@ -1028,7 +1013,6 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- STAT CARD WIDGET CREATOR ---
   Widget _buildStatCard(
     String label,
     String value,
@@ -1070,43 +1054,47 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- MINI ACTION BUTTON WIDGET CREATOR ---
   Widget _buildMiniActionButton(
     String label,
     IconData icon,
     Color iconColor, {
     VoidCallback? onTap,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0F172A).withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF1E293B)),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withOpacity(0.3),
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              vertical: 12.0,
-              horizontal: 16.0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: iconColor, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+          border: Border.all(color: const Color(0xFF1E293B)),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: 12.0,
+                horizontal: 8.0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: iconColor, size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1114,7 +1102,6 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- WIDE ACTION LIST ROW WIDGET CREATOR ---
   Widget _buildWideActionRow(
     String title,
     String subtitle,
@@ -1175,19 +1162,22 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- CUSTOM COMPACT BOTTOM NAVIGATION BAR ---
   Widget _buildBottomNavigationBar() {
     return Container(
       height: 75,
       decoration: const BoxDecoration(
-        color: Color(0xFF090D1F), // Dark midnight nav background
+        color: Color(0xFF090D1F),
         border: Border(top: BorderSide(color: Color(0xFF1E293B), width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, "Home", Icons.home),
-          _buildNavItem(1, "Practice", Icons.play_arrow),
+          _buildNavItem(
+            1,
+            "Practice",
+            Icons.play_arrow_rounded,
+          ), // Practice Tab
           _buildNavItem(2, "Tuner", Icons.tune),
           _buildNavItem(3, "Ranking", Icons.star),
           _buildNavItem(4, "Profile", Icons.person),
@@ -1196,7 +1186,6 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // --- NAV ITEM BUILDER ---
   Widget _buildNavItem(int index, String label, IconData icon) {
     final isSelected = _currentIndex == index;
     final color = isSelected
@@ -1206,16 +1195,14 @@ class _UserDashboardState extends State<UserDashboard> {
     return Expanded(
       child: InkWell(
         onTap: () {
-          // 1. Intercept if the user clicks "Practice" (index 1)
+          // If user taps the Practice tab (index 1), run the tuner completion check first
           if (index == 1) {
-            _showTuningModal(context); // Pop open the warning sheet!
-            return; // Stop execution here so the background screen doesn't shift
+            _handlePracticeAccess();
+          } else {
+            setState(() {
+              _currentIndex = index;
+            });
           }
-
-          // 2. For all other tabs, update the index normally
-          setState(() {
-            _currentIndex = index;
-          });
         },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1224,7 +1211,6 @@ class _UserDashboardState extends State<UserDashboard> {
             const SizedBox(height: 4),
             Text(label, style: TextStyle(color: color, fontSize: 10)),
             const SizedBox(height: 4),
-            // Floating dot decoration for selected item
             Container(
               width: 4,
               height: 4,

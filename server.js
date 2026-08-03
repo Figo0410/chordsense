@@ -7,8 +7,6 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-
-
 const connectDB = require('./config/db.js');
 
 const app = express();
@@ -20,14 +18,14 @@ connectDB();
 app.use(cors()); // Allows Flutter app to make cross-origin requests
 app.use(express.json()); // Parses incoming JSON payloads
 
-
-
 // --- ROUTES ---
 app.use('/api/songs', require('./routes/songRoutes'));
 
-// ADD THIS LINE: Connects your login & authentication endpoints
+// Connects your login & authentication endpoints
 app.use('/api/auth', require('./routes/authRoutes')); 
 
+// Connects your learning path endpoints
+app.use('/api/learning-path', require('./routes/learningPathRoutes'));
 
 // 3. Test Route
 app.get('/', (req, res) => {

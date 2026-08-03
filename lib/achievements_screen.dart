@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http; // Needed for http.get
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
-import 'services/api.service.dart';
+import 'services/api_service.dart';
 
 class BadgeItem {
   final String id;
