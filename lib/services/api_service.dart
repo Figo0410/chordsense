@@ -39,6 +39,63 @@ class ApiService {
     }
   }
 
+  // Send 6-digit verification code to email before registration
+  static Future<Map<String, dynamic>> sendRegisterOtp(
+    String username,
+    String email,
+    String password,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/send-register-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'username': username,
+        'email': email,
+        'password': password,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Failed to send verification code');
+    } else {
+      throw Exception(
+        'Server returned status ${response.statusCode}. Check backend routes.',
+      );
+    }
+  }
+
+  // Verify 6-digit registration code and complete account creation
+  static Future<Map<String, dynamic>> verifyRegisterOtp(
+    String email,
+    String code,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/verify-register-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code}),
+    );
+
+    if (response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Failed to verify code');
+    } else {
+      throw Exception(
+        'Server returned status ${response.statusCode}. Check backend routes.',
+      );
+    }
+  }
+
   // Register a new user
   static Future<Map<String, dynamic>> register(
     String username,
