@@ -13,7 +13,7 @@ class CompletedChord {
     required this.accuracy,
   });
 
-  // 👈 Add this constructor
+  //Add this constructor
   factory CompletedChord.fromMap(Map<String, dynamic> map) {
     return CompletedChord(
       name: map['name'] ?? '',

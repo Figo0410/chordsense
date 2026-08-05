@@ -1,5 +1,10 @@
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'services/api_service.dart';
 
 class GuitarString {
@@ -29,7 +34,6 @@ class TunerScreen extends StatefulWidget {
 }
 
 class _TunerScreenState extends State<TunerScreen> {
-  // 1. Acoustic Guitar Standard Frequencies
   final List<GuitarString> _strings = [
     GuitarString(number: 1, noteName: "E", label: "High E", frequency: 329.63),
     GuitarString(number: 2, noteName: "B", label: "B", frequency: 246.94),
@@ -39,13 +43,160 @@ class _TunerScreenState extends State<TunerScreen> {
     GuitarString(number: 6, noteName: "E", label: "Low E", frequency: 82.41),
   ];
 
-  int _selectedStringIndex = 0; // Starts with High E active
-  bool _isListening = true;
+  int _selectedStringIndex = 0;
+  bool _isListening = false;
   bool _isSaving = false;
 
-  double _currentDeviation = 4.0;
+  double _currentDeviation = 0.0;
+  double _detectedFrequency = 0.0;
+
+  final FlutterAudioCapture _audioCapture = FlutterAudioCapture();
+  late PitchDetector _pitchDetector;
 
   int get _tunedCount => _strings.where((s) => s.isTuned).length;
+
+  @override
+  void initState() {
+    super.initState();
+    _pitchDetector = PitchDetector();
+    // Disabled auto-start so listening only begins when manually triggered
+  }
+
+  @override
+  void dispose() {
+    _stopTuner();
+    super.dispose();
+  }
+
+  Future<void> _startTuner() async {
+    var status = await Permission.microphone.request();
+    if (!status.isGranted) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Microphone permission is required to tune."),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+      }
+      return;
+    }
+
+    try {
+      if (_isListening) return;
+
+      await _audioCapture.init();
+
+      await _audioCapture.start(
+        _audioCallback,
+        _onError,
+        sampleRate: 44100,
+        bufferSize: 2048,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isListening = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error starting tuner: $e");
+      if (mounted) {
+        setState(() {
+          _isListening = false;
+        });
+      }
+    }
+  }
+
+  void _audioCallback(dynamic obj) async {
+    if (!_isListening || !mounted) return;
+
+    List<double> audioBuffer = [];
+    if (obj is Float64List) {
+      audioBuffer = obj.toList();
+    } else if (obj is List) {
+      audioBuffer = obj.map((e) => (e as num).toDouble()).toList();
+    }
+
+    if (audioBuffer.isEmpty) return;
+
+    try {
+      // Ensure buffer length is a valid power of 2 expected by pitch_detector_dart
+      int targetLength = 2048;
+      List<double> formattedBuffer;
+      if (audioBuffer.length > targetLength) {
+        formattedBuffer = audioBuffer.sublist(0, targetLength);
+      } else if (audioBuffer.length < targetLength) {
+        formattedBuffer = List<double>.from(audioBuffer)
+          ..addAll(List<double>.filled(targetLength - audioBuffer.length, 0.0));
+      } else {
+        formattedBuffer = audioBuffer;
+      }
+
+      final Float32List float32buffer = Float32List.fromList(formattedBuffer);
+      final result = await _pitchDetector.getPitchFromFloatBuffer(
+        float32buffer,
+      );
+
+      if (result.pitched && result.pitch > 30.0 && result.pitch < 1000.0) {
+        final targetFreq = _strings[_selectedStringIndex].frequency;
+        double cents = 1200 * (log(result.pitch / targetFreq) / log(2));
+
+        if (mounted) {
+          setState(() {
+            _detectedFrequency = result.pitch;
+            _currentDeviation = cents.clamp(-50.0, 50.0);
+
+            // AUTO-MARKING LOGIC
+            if (_currentDeviation.abs() <= 2.0 &&
+                !_strings[_selectedStringIndex].isTuned) {
+              _strings[_selectedStringIndex].isTuned = true;
+
+              if (_tunedCount == 6) {
+                _completeTuningProcess();
+              } else {
+                int nextUntuned = _strings.indexWhere(
+                  (s) => !s.isTuned,
+                  _selectedStringIndex,
+                );
+                if (nextUntuned == -1) {
+                  nextUntuned = _strings.indexWhere((s) => !s.isTuned);
+                }
+                if (nextUntuned != -1) {
+                  _selectedStringIndex = nextUntuned;
+                  _currentDeviation = 0.0;
+                }
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Pitch detection error: $e");
+    }
+  }
+
+  void _onError(Object err) {
+    debugPrint("Audio Capture Error: $err");
+  }
+
+  Future<void> _stopTuner() async {
+    try {
+      if (_isListening) {
+        await _audioCapture.stop();
+      }
+    } catch (e) {
+      debugPrint("Error stopping audio capture: $e");
+    }
+    if (mounted) {
+      setState(() {
+        _isListening = false;
+        _detectedFrequency = 0.0;
+        _currentDeviation = 0.0;
+      });
+    }
+  }
 
   Future<void> _completeTuningProcess() async {
     if (widget.userId == null) {
@@ -136,20 +287,12 @@ class _TunerScreenState extends State<TunerScreen> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(LucideIcons.volume_2, color: Color(0xFF818CF8)),
-            onPressed: () {},
-          ),
-          const SizedBox(width: 8),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. HOW TO USE BANNER ---
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -176,7 +319,7 @@ class _TunerScreenState extends State<TunerScreen> {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          "Tap a string below, then play that string on your guitar. The tuner will detect the pitch and show if it's in tune.",
+                          "Tap a string below, then play that string on your guitar. The tuner will detect the pitch and automatically mark it as tuned.",
                           style: TextStyle(
                             color: Color(0xFF94A3B8),
                             fontSize: 11,
@@ -190,8 +333,6 @@ class _TunerScreenState extends State<TunerScreen> {
               ),
             ),
             const SizedBox(height: 18),
-
-            // --- 2. TUNER CALIBRATION BOARD ---
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -217,14 +358,13 @@ class _TunerScreenState extends State<TunerScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${activeString.label} (${activeString.noteName})",
+                    "${activeString.label} (${activeString.noteName}) • Detected: ${_detectedFrequency > 0 ? '${_detectedFrequency.toStringAsFixed(1)} Hz' : (_isListening ? 'Listening...' : 'Paused')}",
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 12,
                     ),
                   ),
                   const SizedBox(height: 18),
-
                   LayoutBuilder(
                     builder: (context, constraints) {
                       double normalizedValue = ((_currentDeviation + 50) / 100)
@@ -247,7 +387,7 @@ class _TunerScreenState extends State<TunerScreen> {
                                 Expanded(
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.1),
+                                      color: Colors.red.withValues(alpha: 0.1),
                                       borderRadius:
                                           const BorderRadius.horizontal(
                                             left: Radius.circular(12),
@@ -257,12 +397,14 @@ class _TunerScreenState extends State<TunerScreen> {
                                 ),
                                 Container(
                                   width: 40,
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                 ),
                                 Expanded(
                                   child: Container(
                                     decoration: BoxDecoration(
-                                      color: Colors.orange.withOpacity(0.1),
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.1,
+                                      ),
                                       borderRadius:
                                           const BorderRadius.horizontal(
                                             right: Radius.circular(12),
@@ -296,7 +438,7 @@ class _TunerScreenState extends State<TunerScreen> {
                                         (_currentDeviation.abs() <= 2.0
                                                 ? const Color(0xFF10B981)
                                                 : const Color(0xFFF97316))
-                                            .withOpacity(0.5),
+                                            .withValues(alpha: 0.5),
                                     blurRadius: 8,
                                   ),
                                 ],
@@ -362,7 +504,6 @@ class _TunerScreenState extends State<TunerScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             const Text(
               "Select a String",
               style: TextStyle(
@@ -372,8 +513,6 @@ class _TunerScreenState extends State<TunerScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
-            // --- 3. THE 6-STRING LIST VIEW ---
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -387,11 +526,7 @@ class _TunerScreenState extends State<TunerScreen> {
                   onTap: () {
                     setState(() {
                       _selectedStringIndex = index;
-                      if (index == 0) _currentDeviation = 4.0;
-                      if (index == 1) _currentDeviation = -12.5;
-                      if (index == 2) _currentDeviation = 0.0;
-                      if (index == 3) _currentDeviation = 1.2;
-                      if (index >= 4) _currentDeviation = -6.0;
+                      _currentDeviation = 0.0;
                     });
                   },
                   child: Container(
@@ -400,7 +535,7 @@ class _TunerScreenState extends State<TunerScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withOpacity(0.4),
+                      color: const Color(0xFF0F172A).withValues(alpha: 0.4),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isSelected
@@ -420,7 +555,9 @@ class _TunerScreenState extends State<TunerScreen> {
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: isSelected
-                                    ? const Color(0xFF0284C7).withOpacity(0.15)
+                                    ? const Color(
+                                        0xFF0284C7,
+                                      ).withValues(alpha: 0.15)
                                     : const Color(0xFF1E293B),
                                 border: Border.all(
                                   color: isSelected
@@ -505,8 +642,6 @@ class _TunerScreenState extends State<TunerScreen> {
               },
             ),
             const SizedBox(height: 18),
-
-            // --- 4. START/STOP BUTTON ---
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -521,9 +656,11 @@ class _TunerScreenState extends State<TunerScreen> {
                   elevation: 0,
                 ),
                 onPressed: () {
-                  setState(() {
-                    _isListening = !_isListening;
-                  });
+                  if (_isListening) {
+                    _stopTuner();
+                  } else {
+                    _startTuner();
+                  }
                 },
                 child: Text(
                   _isListening ? "Stop Listening" : "Start Listening",
@@ -536,8 +673,6 @@ class _TunerScreenState extends State<TunerScreen> {
               ),
             ),
             const SizedBox(height: 18),
-
-            // --- 5. TUNING PROGRESS BANNER ---
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -580,7 +715,6 @@ class _TunerScreenState extends State<TunerScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-
                   Row(
                     children: List.generate(6, (index) {
                       bool isSegmentTuned = _strings[index].isTuned;
@@ -599,7 +733,6 @@ class _TunerScreenState extends State<TunerScreen> {
                     }),
                   ),
                   const SizedBox(height: 16),
-
                   SizedBox(
                     width: double.infinity,
                     height: 44,
@@ -653,89 +786,8 @@ class _TunerScreenState extends State<TunerScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 18),
-
-            // --- 6. TUNING TIPS CARD ---
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: const Color(0xFF020617),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: const Color(0xFF1E293B)),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        LucideIcons.lightbulb,
-                        color: Color(0xFFEAB308),
-                        size: 18,
-                      ),
-                      SizedBox(width: 8),
-                      Text(
-                        "Tuning Tips",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                  BulletPoint(
-                    text: "Turn the tuning peg slowly for precise adjustments",
-                  ),
-                  BulletPoint(
-                    text:
-                        "If too flat, tighten the string by turning clockwise",
-                  ),
-                  BulletPoint(
-                    text:
-                        "If too sharp, loosen the string by turning counter-clockwise",
-                  ),
-                  BulletPoint(
-                    text: "Always tune in a quiet environment for best results",
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class BulletPoint extends StatelessWidget {
-  final String text;
-  const BulletPoint({super.key, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "• ",
-            style: TextStyle(color: Color(0xFF0EA5E9), fontSize: 14),
-          ),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(
-                color: Color(0xFF94A3B8),
-                fontSize: 11,
-                height: 1.3,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
