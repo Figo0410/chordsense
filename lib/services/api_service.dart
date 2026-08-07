@@ -3,14 +3,34 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  // Android Emulator: http://10.0.2.2:5000/api
-  // iOS Simulator / Desktop / Web: http://localhost:5000/api
-  // Physical Mobile Device: http://<YOUR_COMPUTER_LOCAL_IP>:5000/api
   static String get baseUrl {
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     } else {
       return 'http://10.0.2.2:5000/api';
+    }
+  }
+
+  static Future<Map<String, dynamic>> post(
+    String endpoint,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body);
+    }
+
+    final contentType = response.headers['content-type'] ?? '';
+    if (contentType.contains('application/json')) {
+      final error = jsonDecode(response.body);
+      throw Exception(error['message'] ?? 'Failed to complete request');
+    } else {
+      throw Exception('Server returned status ${response.statusCode}');
     }
   }
 
@@ -39,7 +59,6 @@ class ApiService {
     }
   }
 
-  // Send 6-digit verification code to email before registration
   static Future<Map<String, dynamic>> sendRegisterOtp(
     String username,
     String email,
@@ -70,7 +89,6 @@ class ApiService {
     }
   }
 
-  // Verify 6-digit registration code and complete account creation
   static Future<Map<String, dynamic>> verifyRegisterOtp(
     String email,
     String code,
@@ -96,7 +114,6 @@ class ApiService {
     }
   }
 
-  // Register a new user
   static Future<Map<String, dynamic>> register(
     String username,
     String email,
@@ -127,7 +144,6 @@ class ApiService {
     }
   }
 
-  // Forgot Password
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/forgot-password'),
@@ -177,7 +193,6 @@ class ApiService {
     }
   }
 
-  // Fetch all songs from MongoDB
   static Future<List<dynamic>> getSongs() async {
     final response = await http.get(
       Uri.parse('$baseUrl/songs'),
@@ -191,7 +206,6 @@ class ApiService {
     }
   }
 
-  // Fetch all learning path levels from MongoDB
   static Future<List<dynamic>> getLearningPaths() async {
     final response = await http.get(
       Uri.parse('$baseUrl/learning-path'),
@@ -205,7 +219,6 @@ class ApiService {
     }
   }
 
-  // Fetch logged-in user profile & progress data from MongoDB
   static Future<Map<String, dynamic>> getUserProfile(String userId) async {
     final response = await http.get(
       Uri.parse('$baseUrl/auth/user/$userId'),
@@ -219,7 +232,23 @@ class ApiService {
     }
   }
 
-  // Update user's tuner completion status in MongoDB
+  static Future<Map<String, dynamic>> updateUserProfile(
+    String userId,
+    Map<String, dynamic> data,
+  ) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/auth/user/$userId/progress'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to update user profile.');
+    }
+  }
+
   static Future<Map<String, dynamic>> updateTunerStatus(
     String userId,
     bool hasCompletedTuner,
@@ -235,5 +264,67 @@ class ApiService {
     } else {
       throw Exception('Failed to update tuner status.');
     }
+  }
+
+  static Future<Map<String, dynamic>> savePracticeSession({
+    required String userId,
+    required int levelId,
+    required String chordPracticed,
+    required int totalAttempts,
+    required int correctAttempts,
+    required int incorrectAttempts,
+    required int accuracy,
+    required int pointsEarned,
+    required int duration,
+  }) async {
+    Map<String, dynamic> result = {};
+
+    try {
+      result = await post('/auth/save-session', {
+        "userId": userId,
+        "levelId": levelId,
+        "chordPracticed": chordPracticed,
+        "totalAttempts": totalAttempts,
+        "correctAttempts": correctAttempts,
+        "incorrectAttempts": incorrectAttempts,
+        "accuracy": accuracy,
+        "pointsEarned": pointsEarned,
+        "duration": duration,
+        "isPerfect100": accuracy >= 100,
+      });
+    } catch (_) {}
+
+    try {
+      final List<String> chordsList = chordPracticed
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+
+      final progressResponse = await http.patch(
+        Uri.parse('$baseUrl/auth/user/$userId/progress'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'levelId': levelId,
+          'levelNumber': levelId,
+          'pointsEarned': pointsEarned,
+          'accuracy': accuracy,
+          'completed': true,
+          'completedLevel': {
+            'levelNumber': levelId,
+            'accuracy': accuracy,
+            'progress': 1.0,
+          },
+          'chordsCompleted': chordsList,
+          'currentLevel': levelId + 1,
+          'progressPercent': 100,
+        }),
+      );
+      if (progressResponse.statusCode == 200) {
+        result = jsonDecode(progressResponse.body);
+      }
+    } catch (_) {}
+
+    return result;
   }
 }

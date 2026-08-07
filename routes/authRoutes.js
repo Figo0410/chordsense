@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
+const LearningPath = require('../models/LearningPath');
 const nodemailer = require('nodemailer');
 const { checkAndAwardBadges } = require('../utils/badgeHelper');
 
 // Temporary in-memory store for registration OTPs
-// Structure: { email: { username, email, password, code, expiresAt } }
 const pendingRegistrations = new Map();
 
 // Nodemailer Transporter
@@ -22,7 +22,6 @@ router.post('/send-register-otp', async (req, res) => {
   const { username, email, password } = req.body;
 
   try {
-    // Check if username OR email already exists in MongoDB
     const existingUser = await User.findOne({ 
       $or: [{ username }, { email }] 
     });
@@ -35,11 +34,9 @@ router.post('/send-register-otp', async (req, res) => {
       });
     }
 
-    // Generate 6-digit registration code
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + 600000; // 10 minutes expiry
+    const expiresAt = Date.now() + 600000;
 
-    // Save pending user details in memory until verified
     pendingRegistrations.set(email.toLowerCase(), {
       username,
       email,
@@ -90,11 +87,10 @@ router.post('/verify-register-otp', async (req, res) => {
       return res.status(400).json({ message: 'Invalid verification code.' });
     }
 
-    // Code is valid! Create official user in MongoDB
     const newUser = new User({
       username: pending.username,
       email: pending.email,
-      password: pending.password, // Plaintext as requested
+      password: pending.password,
       role: 'user',
       currentLevel: 1,
       totalPoints: 0,
@@ -104,9 +100,10 @@ router.post('/verify-register-otp', async (req, res) => {
       accuracy: 0,
       streak: 0,
       chordsMastered: 0,
-      hasCompletedTuner: false, // Default for new users
+      hasCompletedTuner: false,
 
       completedChords: [],
+      completedLevels: [],
       learningChords: [
         { name: 'C Major', attempts: 0, progress: 0 },
         { name: 'G Major', attempts: 0, progress: 0 },
@@ -117,7 +114,6 @@ router.post('/verify-register-otp', async (req, res) => {
 
     await newUser.save();
 
-    // Clean up temporary record
     pendingRegistrations.delete(email.toLowerCase());
 
     res.status(201).json({
@@ -137,6 +133,7 @@ router.post('/verify-register-otp', async (req, res) => {
         chordsMastered: newUser.chordsMastered,
         hasCompletedTuner: newUser.hasCompletedTuner,
         completedChords: newUser.completedChords,
+        completedLevels: newUser.completedLevels,
         learningChords: newUser.learningChords,
         practiceSessions: newUser.practiceSessions,
       },
@@ -146,7 +143,7 @@ router.post('/verify-register-otp', async (req, res) => {
   }
 });
 
-// 3. LEGACY REGISTER ROUTE (DIRECT REGISTER BACKUP)
+// 3. LEGACY REGISTER ROUTE
 router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
 
@@ -179,6 +176,7 @@ router.post('/register', async (req, res) => {
       hasCompletedTuner: false,
 
       completedChords: [],
+      completedLevels: [],
       learningChords: [
         { name: 'C Major', attempts: 0, progress: 0 },
         { name: 'G Major', attempts: 0, progress: 0 },
@@ -206,6 +204,7 @@ router.post('/register', async (req, res) => {
         chordsMastered: newUser.chordsMastered,
         hasCompletedTuner: newUser.hasCompletedTuner,
         completedChords: newUser.completedChords,
+        completedLevels: newUser.completedLevels,
         learningChords: newUser.learningChords,
         practiceSessions: newUser.practiceSessions,
       },
@@ -241,6 +240,7 @@ router.post('/login', async (req, res) => {
       chordsMastered: user.chordsMastered ?? 0,
       hasCompletedTuner: user.hasCompletedTuner ?? false,
       completedChords: user.completedChords ?? [],
+      completedLevels: user.completedLevels ?? [],
       learningChords: user.learningChords ?? [],
       practiceSessions: user.practiceSessions ?? [],
     });
@@ -364,7 +364,18 @@ router.get('/profile/:id', async (req, res) => {
     res.json(user);
   } catch (err) {
     console.error('Error in profile route:', err);
-    res.status(500).error({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET USER PROFILE / BACKEND SYNC ROUTE
+router.get('/user/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -381,6 +392,148 @@ router.patch('/user/:id/tuner-status', async (req, res) => {
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// 10. PATCH USER PROGRESS & LEARNING PATH SYNC ROUTE
+router.patch('/user/:id/progress', async (req, res) => {
+  try {
+    const { 
+      levelId, 
+      levelNumber, 
+      pointsEarned, 
+      accuracy, 
+      completed, 
+      completedLevel, 
+      chordsCompleted, 
+      chordPracticed,
+      currentLevel 
+    } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const targetLevelNum = levelNumber || levelId || (completedLevel && completedLevel.levelNumber);
+
+    if (pointsEarned) {
+      user.totalPoints = (user.totalPoints || 0) + pointsEarned;
+    }
+    if (accuracy !== undefined) user.accuracy = accuracy;
+    if (chordPracticed) user.currentChord = chordPracticed;
+
+    // Handle completed chords
+    const chordsToAdd = chordsCompleted || (chordPracticed ? chordPracticed.split(',').map(c => c.trim()) : []);
+    chordsToAdd.forEach((chord) => {
+      if (chord && !user.completedChords.includes(chord)) {
+        user.completedChords.push(chord);
+      }
+    });
+    user.chordsMastered = user.completedChords.length;
+
+    // Force completion flag if level completion object or targetLevelNum is present
+    const isCompleted = completed === true || !!completedLevel || (targetLevelNum && accuracy !== undefined);
+
+    if (isCompleted && targetLevelNum) {
+      if (!user.completedLevels) user.completedLevels = [];
+      const existingIdx = user.completedLevels.findIndex((cl) => cl.levelNumber === targetLevelNum);
+      
+      const levelObj = {
+        levelNumber: targetLevelNum,
+        progress: 1.0,
+        accuracy: accuracy || (user.completedLevels[existingIdx] && user.completedLevels[existingIdx].accuracy) || 100,
+      };
+
+      if (existingIdx !== -1) {
+        user.completedLevels[existingIdx] = levelObj;
+      } else {
+        user.completedLevels.push(levelObj);
+      }
+
+      const nextLevel = currentLevel || (targetLevelNum + 1);
+      if (user.currentLevel <= targetLevelNum) {
+        user.currentLevel = nextLevel;
+      }
+
+      const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
+      if (nextLevelData) {
+        user.nextLevelPoints = nextLevelData.requiredPoints;
+      }
+    }
+
+    if (user.nextLevelPoints > 0) {
+      user.progressPercent = Math.min(100.0, (user.totalPoints / user.nextLevelPoints) * 100);
+    }
+
+    await user.save();
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/practice/save-session
+router.post('/save-session', async (req, res) => {
+  try {
+    const { userId, levelId, chordPracticed, totalAttempts, correctAttempts, incorrectAttempts, accuracy, pointsEarned, duration } = req.body;
+
+    const isCompleted = correctAttempts > 0;
+    const sessionData = {
+      levelId,
+      chordPracticed,
+      date: new Date(),
+      totalAttempts,
+      correctAttempts,
+      incorrectAttempts,
+      accuracy,
+      pointsEarned,
+      duration,
+      completionStatus: isCompleted ? "Completed" : "Incomplete"
+    };
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    user.practiceSessions.push(sessionData);
+    user.totalPoints = (user.totalPoints || 0) + (pointsEarned || 0);
+    user.accuracy = accuracy;
+    user.currentChord = chordPracticed;
+
+    if (isCompleted && chordPracticed) {
+      const chordArray = chordPracticed.split(',').map((c) => c.trim());
+      chordArray.forEach((chord) => {
+        if (!user.completedChords.includes(chord)) {
+          user.completedChords.push(chord);
+        }
+      });
+      user.chordsMastered = user.completedChords.length;
+
+      if (levelId) {
+        if (!user.completedLevels) user.completedLevels = [];
+        const existingIdx = user.completedLevels.findIndex((cl) => cl.levelNumber === levelId);
+        if (existingIdx !== -1) {
+          user.completedLevels[existingIdx] = {
+            levelNumber: levelId,
+            progress: 1.0,
+            accuracy: accuracy || user.completedLevels[existingIdx].accuracy || 100,
+          };
+        } else {
+          user.completedLevels.push({
+            levelNumber: levelId,
+            progress: 1.0,
+            accuracy: accuracy || 100,
+          });
+        }
+
+        if (user.currentLevel <= levelId) {
+          user.currentLevel = levelId + 1;
+        }
+      }
+    }
+
+    await user.save();
+    res.status(200).json({ message: "Session recorded successfully", user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

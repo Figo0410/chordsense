@@ -6,12 +6,12 @@ import 'practice_session_screen.dart';
 class LevelData {
   final int levelNumber;
   final String title;
-  final String difficulty; // Beginner, Intermediate, Advanced, Master
+  final String difficulty;
   final List<String> chords;
   final int requiredPoints;
   final int rewardPoints;
-  final double? progress; // null means locked, 1.0 means completed
-  final int? accuracy; // e.g., 92%
+  final double? progress;
+  final int? accuracy;
 
   LevelData({
     required this.levelNumber,
@@ -26,7 +26,7 @@ class LevelData {
 }
 
 class LearningPathScreen extends StatefulWidget {
-  final String? userId; // Optional Logged-in User ID
+  final String? userId;
   final int? initialPoints;
   final int? initialCurrentLevel;
   final List<dynamic>? initialCompletedLevels;
@@ -57,10 +57,10 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
   String? _errorMessage;
   List<LevelData> _levels = [];
 
-  // User state variables fetched from MongoDB
   int _userTotalPoints = 0;
   int _userCurrentLevel = 1;
   List<dynamic> _userCompletedLevels = [];
+  List<String> _userCompletedChords = [];
 
   @override
   void initState() {
@@ -71,7 +71,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     _fetchLearningPathData();
   }
 
-  // Fallback levels data in case API endpoint returns empty array or fails
   List<Map<String, dynamic>> _getFallbackLevels() {
     return [
       {
@@ -94,70 +93,21 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
         "levelNumber": 3,
         "title": "Minor Chords",
         "difficulty": "Beginner",
-        "chords": ["E Minor", "A Minor"],
+        "chords": ["A Minor", "E Minor", "D Minor"],
         "requiredPoints": 250,
         "rewardPoints": 200,
       },
       {
         "levelNumber": 4,
-        "title": "Dominant 7ths",
+        "title": "Chord Transitions",
         "difficulty": "Intermediate",
-        "chords": ["G7", "C7", "D7"],
+        "chords": ["C-G-D Transition", "Am-Em Switch"],
         "requiredPoints": 450,
         "rewardPoints": 250,
-      },
-      {
-        "levelNumber": 5,
-        "title": "Barre Chords Prep",
-        "difficulty": "Intermediate",
-        "chords": ["F Major", "B Minor"],
-        "requiredPoints": 700,
-        "rewardPoints": 300,
-      },
-      {
-        "levelNumber": 6,
-        "title": "Extended Chords",
-        "difficulty": "Intermediate",
-        "chords": ["Cmaj7", "Amaj7", "Em7"],
-        "requiredPoints": 1000,
-        "rewardPoints": 350,
-      },
-      {
-        "levelNumber": 7,
-        "title": "Suspended Chords",
-        "difficulty": "Advanced",
-        "chords": ["Dsus4", "Asus2", "Gsus4"],
-        "requiredPoints": 1350,
-        "rewardPoints": 400,
-      },
-      {
-        "levelNumber": 8,
-        "title": "Add & Diminished",
-        "difficulty": "Advanced",
-        "chords": ["Cadd9", "Fdim7"],
-        "requiredPoints": 1750,
-        "rewardPoints": 450,
-      },
-      {
-        "levelNumber": 9,
-        "title": "Jazz Harmonies",
-        "difficulty": "Master",
-        "chords": ["Dm9", "G13", "Cmaj9"],
-        "requiredPoints": 2200,
-        "rewardPoints": 500,
-      },
-      {
-        "levelNumber": 10,
-        "title": "Mastery Progression",
-        "difficulty": "Master",
-        "chords": ["F#m7b5", "B7alt", "E9"],
-        "requiredPoints": 2700,
-        "rewardPoints": 600,
       },
     ];
   }
 
-  // Fetch real learning path levels & user progress from MongoDB
   Future<void> _fetchLearningPathData() async {
     setState(() {
       _isLoading = true;
@@ -168,9 +118,9 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
       int fetchedPoints = _userTotalPoints;
       int fetchedCurrentLevel = _userCurrentLevel;
       List<dynamic> fetchedCompletedLevels = _userCompletedLevels;
+      List<String> fetchedCompletedChords = [];
 
-      // 1. Fetch User Profile Data if userId present
-      String searchUserId = widget.userId ?? "";
+      String searchUserId = widget.userId ?? "6a72a3418427dadc19d157d";
 
       if (searchUserId.isNotEmpty) {
         try {
@@ -185,12 +135,15 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
               fetchedCurrentLevel;
           fetchedCompletedLevels =
               userData['completedLevels'] ?? fetchedCompletedLevels;
-        } catch (_) {
-          // Defaults handled gracefully if profile request fails
-        }
+
+          if (userData['completedChords'] is List) {
+            fetchedCompletedChords = (userData['completedChords'] as List)
+                .map((c) => c.toString())
+                .toList();
+          }
+        } catch (_) {}
       }
 
-      // 2. Fetch Levels from MongoDB learning_paths collection
       List<dynamic> levelsData = [];
       try {
         levelsData = await ApiService.getLearningPaths();
@@ -198,7 +151,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
         levelsData = [];
       }
 
-      // Fallback to static structure if backend list is empty
       if (levelsData.isEmpty) {
         levelsData = _getFallbackLevels();
       }
@@ -218,36 +170,61 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
 
         List<String> chordList = [];
         if (item['chords'] is List) {
-          chordList = List<String>.from(
-            item['chords'].map((c) => c.toString()),
-          );
+          chordList = (item['chords'] as List)
+              .map((c) => c.toString())
+              .toList();
         }
 
-        // REAL DATABASE-DRIVEN PROGRESSION
         double? progress;
         int? accuracy;
 
-        // Check key variations from MongoDB completedLevels structure
-        var matchedCompleted = fetchedCompletedLevels.firstWhere((cl) {
-          if (cl is! Map) return false;
-          int clNum =
-              (cl['levelNumber'] ?? cl['level_number'] ?? cl['level'] as num?)
-                  ?.toInt() ??
-              -1;
-          return clNum == levelNum;
-        }, orElse: () => null);
+        dynamic matchedCompleted;
+        for (var cl in fetchedCompletedLevels) {
+          if (cl is Map) {
+            int clNum =
+                (cl['levelNumber'] ?? cl['level_number'] ?? cl['level'] as num?)
+                    ?.toInt() ??
+                -1;
+            if (clNum == levelNum) {
+              matchedCompleted = cl;
+              break;
+            }
+          } else if (cl is num && cl.toInt() == levelNum) {
+            matchedCompleted = {"levelNumber": levelNum, "progress": 1.0};
+            break;
+          }
+        }
+
+        bool isExplicitlyCompleted = false;
 
         if (matchedCompleted != null) {
-          progress = (matchedCompleted['progress'] as num?)?.toDouble() ?? 1.0;
+          double rawProg =
+              (matchedCompleted['progress'] as num?)?.toDouble() ?? 1.0;
           accuracy = (matchedCompleted['accuracy'] as num?)?.toInt();
-        } else if (levelNum == fetchedCurrentLevel) {
-          progress = 0.0; // Current unlearned level starts at 0%
-        } else if (levelNum < fetchedCurrentLevel ||
-            fetchedPoints >= requiredPoints) {
-          // If level is past current level OR user has enough total points -> unlock
-          progress = 0.0;
-        } else {
-          progress = null; // Future levels remain locked
+          progress = rawProg >= 1.0 ? 1.0 : rawProg;
+          isExplicitlyCompleted = progress == 1.0;
+        } else if (levelNum < fetchedCurrentLevel) {
+          progress = 1.0;
+          isExplicitlyCompleted = true;
+        }
+
+        if (!isExplicitlyCompleted) {
+          int count = chordList
+              .where((c) => fetchedCompletedChords.contains(c))
+              .length;
+
+          if (chordList.isNotEmpty && count == chordList.length) {
+            progress = 1.0;
+            isExplicitlyCompleted = true;
+          } else if (chordList.isNotEmpty && count > 0) {
+            progress = (count / chordList.length).clamp(0.0, 1.0);
+          } else if (levelNum == fetchedCurrentLevel) {
+            progress = 0.0;
+          } else if (fetchedPoints >= requiredPoints) {
+            progress = 0.0;
+          } else {
+            progress = null;
+          }
         }
 
         loadedLevels.add(
@@ -264,13 +241,13 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
         );
       }
 
-      // Sort by level number ascending
       loadedLevels.sort((a, b) => a.levelNumber.compareTo(b.levelNumber));
 
       setState(() {
         _userTotalPoints = fetchedPoints;
         _userCurrentLevel = fetchedCurrentLevel;
         _userCompletedLevels = fetchedCompletedLevels;
+        _userCompletedChords = fetchedCompletedChords;
         _levels = loadedLevels;
         _isLoading = false;
       });
@@ -282,9 +259,24 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     }
   }
 
+  void _openPractice(LevelData level) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PracticeSessionScreen(
+          initialChord: level.chords.first,
+          userId: widget.userId ?? "6a72a3418427dadc19d157d",
+          levelId: level.levelNumber,
+          rewardPoints: level.rewardPoints,
+          levelChords: List<String>.from(level.chords),
+        ),
+      ),
+    );
+    _fetchLearningPathData();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Filter levels based on selected difficulty category
     final filteredLevels = _levels.where((level) {
       if (_selectedFilter == "All") return true;
       return level.difficulty.toLowerCase() == _selectedFilter.toLowerCase();
@@ -293,7 +285,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     int completedCount = _levels.where((l) => l.progress == 1.0).length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF030712), // Dark Slate base
+      backgroundColor: const Color(0xFF030712),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -323,8 +315,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
       body: Column(
         children: [
           const SizedBox(height: 12),
-
-          // --- 1. USER METRICS DISPLAY ---
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
@@ -348,8 +338,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // --- 2. HORIZONTAL FILTER BUTTONS ---
           SizedBox(
             height: 36,
             child: ListView.separated(
@@ -403,8 +391,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // --- 3. LEVEL CARD LIST / LOADING STATE ---
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -462,7 +448,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     );
   }
 
-  // Header metric card helper
   Widget _buildMetricCard(String label, String value, Color accentColor) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -496,19 +481,15 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     );
   }
 
-  // Large Interactive Level Card Builder
   Widget _buildLevelCard(LevelData level) {
     final bool isLocked = level.progress == null;
     final bool isCompleted = level.progress == 1.0;
 
-    // Outer border color adjustments
     Color cardBorderColor = const Color(0xFF1E293B);
     if (isCompleted) {
-      cardBorderColor = const Color(
-        0xFF10B981,
-      ).withOpacity(0.4); // Emerald Green
+      cardBorderColor = const Color(0xFF10B981).withOpacity(0.4);
     } else if (!isLocked && level.progress! > 0.0) {
-      cardBorderColor = const Color(0xFF0EA5E9).withOpacity(0.4); // Cyan Blue
+      cardBorderColor = const Color(0xFF0EA5E9).withOpacity(0.4);
     }
 
     return Container(
@@ -527,7 +508,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Left hand Icon Badge (Checked / Number / Locked)
                 Container(
                   width: 44,
                   height: 44,
@@ -549,9 +529,9 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                   child: Center(
                     child: isCompleted
                         ? const Icon(
-                            LucideIcons.circle_check,
+                            LucideIcons.check,
                             color: Color(0xFF10B981),
-                            size: 20,
+                            size: 22,
                           )
                         : (isLocked
                               ? const Icon(
@@ -570,8 +550,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                   ),
                 ),
                 const SizedBox(width: 14),
-
-                // Level Headers
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -598,14 +576,14 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                                 const Icon(
                                   LucideIcons.star,
                                   color: Color(0xFF10B981),
-                                  size: 12,
+                                  size: 14,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
                                   "${level.accuracy}%",
                                   style: const TextStyle(
                                     color: Color(0xFF10B981),
-                                    fontSize: 11,
+                                    fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -614,8 +592,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                         ],
                       ),
                       const SizedBox(height: 6),
-
-                      // Difficulty Tag
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -624,7 +600,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                         decoration: BoxDecoration(
                           color: isLocked
                               ? const Color(0xFF1E293B)
-                              : (level.difficulty == "Beginner"
+                              : (level.difficulty.toLowerCase() == "beginner"
                                     ? const Color(0xFF064E3B)
                                     : const Color(0xFF78350F)),
                           borderRadius: BorderRadius.circular(6),
@@ -634,7 +610,7 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                           style: TextStyle(
                             color: isLocked
                                 ? const Color(0xFF64748B)
-                                : (level.difficulty == "Beginner"
+                                : (level.difficulty.toLowerCase() == "beginner"
                                       ? const Color(0xFF10B981)
                                       : const Color(0xFFF59E0B)),
                             fontSize: 10,
@@ -648,8 +624,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Chords pill block
             const Text(
               "Chords to Learn:",
               style: TextStyle(
@@ -663,6 +637,8 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
               spacing: 8,
               runSpacing: 6,
               children: level.chords.map((chord) {
+                final isChordDone =
+                    isCompleted || _userCompletedChords.contains(chord);
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -671,12 +647,16 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                   decoration: BoxDecoration(
                     color: isLocked
                         ? const Color(0xFF1E293B).withOpacity(0.4)
-                        : const Color(0xFF0C243B),
+                        : (isChordDone
+                              ? const Color(0xFF064E3B).withOpacity(0.5)
+                              : const Color(0xFF0C243B)),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: isLocked
                           ? const Color(0xFF334155)
-                          : const Color(0xFF0C4A6E),
+                          : (isChordDone
+                                ? const Color(0xFF10B981)
+                                : const Color(0xFF0C4A6E)),
                     ),
                   ),
                   child: Row(
@@ -686,7 +666,9 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                         LucideIcons.music,
                         color: isLocked
                             ? const Color(0xFF475569)
-                            : const Color(0xFF0EA5E9),
+                            : (isChordDone
+                                  ? const Color(0xFF10B981)
+                                  : const Color(0xFF0EA5E9)),
                         size: 11,
                       ),
                       const SizedBox(width: 4),
@@ -695,7 +677,9 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                         style: TextStyle(
                           color: isLocked
                               ? const Color(0xFF475569)
-                              : const Color(0xFF38BDF8),
+                              : (isChordDone
+                                    ? const Color(0xFF10B981)
+                                    : const Color(0xFF38BDF8)),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -706,8 +690,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
               }).toList(),
             ),
             const SizedBox(height: 16),
-
-            // Points Info & Mid-level stats row
             Row(
               children: [
                 Expanded(
@@ -786,53 +768,33 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
                   ),
               ],
             ),
-
-            // Non-completed progress slider bar
             if (!isLocked && !isCompleted && level.progress != null) ...[
               const SizedBox(height: 12),
               ClipRRect(
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: level.progress,
                   minHeight: 6,
                   backgroundColor: const Color(0xFF1E293B),
-                  color: const Color(0xFF8B5CF6),
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Color(0xFF8B5CF6),
+                  ),
                 ),
               ),
             ],
             const SizedBox(height: 16),
-
-            // Bottom CTA Buttons (Review / Practice / Locked)
             if (isCompleted)
               _buildActionButton(
                 label: "Review Level",
                 icon: LucideIcons.arrow_right,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PracticeSessionScreen(
-                        initialChord: level.chords.first,
-                      ),
-                    ),
-                  );
-                },
-                colors: [const Color(0xFF10B981), const Color(0xFF059669)],
+                onTap: () => _openPractice(level),
+                colors: [const Color(0xFF00C853), const Color(0xFF00E676)],
               )
             else if (!isLocked)
               _buildActionButton(
                 label: "Start Practice",
                 icon: LucideIcons.arrow_right,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PracticeSessionScreen(
-                        initialChord: level.chords.first,
-                      ),
-                    ),
-                  );
-                },
+                onTap: () => _openPractice(level),
                 colors: [const Color(0xFF0EA5E9), const Color(0xFF8B5CF6)],
               )
             else
@@ -872,7 +834,6 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
     );
   }
 
-  // Interactive buttons inside level cards helper
   Widget _buildActionButton({
     required String label,
     required IconData icon,

@@ -1,5 +1,5 @@
-import 'dart:convert'; // 👈 FIXES: jsonDecode error
-import 'package:http/http.dart' as http; // Needed for http.get
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 
@@ -43,7 +43,7 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     if (widget.userProfileData != null) {
       userData = widget.userProfileData!;
     }
-    _fetchFreshUserData(); // 👈 Trigger backend check when screen loads
+    _fetchFreshUserData();
   }
 
   Future<void> _fetchFreshUserData() async {
@@ -56,7 +56,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     }
 
     try {
-      // 👈 ADD /auth HERE TO MATCH server.js
       final url = Uri.parse('${ApiService.baseUrl}/auth/profile/$userId');
       debugPrint('📡 [FLUTTER] Sending GET request to: $url');
 
@@ -84,7 +83,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Fallback to route arguments if userProfileData wasn't passed directly via constructor
     if (userData.isEmpty) {
       final args = ModalRoute.of(context)?.settings.arguments;
       if (args is Map<String, dynamic>) {
@@ -99,11 +97,15 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
     final int chordsMastered =
         (userData['chordsMastered'] as num?)?.toInt() ?? 0;
     final int streak = (userData['streak'] as num?)?.toInt() ?? 0;
-    final int accuracy = (userData['accuracy'] as num?)?.toInt() ?? 0;
     final int sessionsCompleted =
         (userData['sessionsCompleted'] as num?)?.toInt() ?? 0;
 
-    // Optional list of unlocked badges from DB if stored directly as array: e.g. userData['unlockedBadges']
+    // Fixed: Track count of 100% accuracy attempts instead of single 100% value
+    final int perfect100Count =
+        (userData['perfect100Count'] ?? userData['perfectPitchCount'] as num?)
+            ?.toInt() ??
+        0;
+
     final List<dynamic> unlockedBadgeIds = userData['unlockedBadges'] is List
         ? userData['unlockedBadges']
         : [];
@@ -136,8 +138,9 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
         description: "Achieve 100% accuracy 5 times",
         points: 200,
         icon: LucideIcons.star,
+        // FIX: Must have 5 perfect 100% accuracy completions or DB unlocked badge
         isUnlocked:
-            unlockedBadgeIds.contains("perfect_pitch") || accuracy >= 100,
+            unlockedBadgeIds.contains("perfect_pitch") || perfect100Count >= 5,
         unlockedDate: userData['perfectPitchDate']?.toString() ?? "Completed",
       ),
       BadgeItem(
@@ -177,14 +180,13 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
   Widget build(BuildContext context) {
     final List<BadgeItem> badges = _generateBadges();
 
-    // Dynamically calculate metrics
     final int unlockedCount = badges.where((b) => b.isUnlocked).length;
     final int totalEarnedPoints = badges
         .where((b) => b.isUnlocked)
         .fold(0, (sum, badge) => sum + badge.points);
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D121F), // Deep slate dark blue
+      backgroundColor: const Color(0xFF0D121F),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0D121F),
         elevation: 0,
@@ -313,7 +315,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
       ),
       child: Row(
         children: [
-          // Badge Icon Square
           Container(
             width: 60,
             height: 60,
@@ -345,7 +346,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          // Badge Information Text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -385,7 +385,6 @@ class _AchievementsScreenState extends State<AchievementsScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Points Bubble
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(

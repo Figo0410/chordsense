@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
   },
   role: { 
     type: String, 
+    enum: ['user', 'admin'],
     default: 'user' 
   },
   currentLevel: { 
@@ -47,6 +48,10 @@ const userSchema = new mongoose.Schema({
     type: Number, 
     default: 0 
   },
+  lastPracticeDate: {
+    type: Date,
+    default: null
+  },
   chordsMastered: { 
     type: Number, 
     default: 0 
@@ -64,11 +69,19 @@ const userSchema = new mongoose.Schema({
     default: [] 
   },
 
+  // Detailed tracking for earned badges with timestamps
+  badgeHistory: [{
+    badgeId: { type: String, required: true },
+    unlockedAt: { type: Date, default: Date.now },
+    pointsEarned: { type: Number, default: 0 }
+  }],
+
   // TRACK REAL COMPLETED LEVELS WITH ACCURACY & PROGRESS
   completedLevels: [{
     levelNumber: Number,
     progress: Number, // e.g. 1.0 for completed, 0.5 for 50%
-    accuracy: Number
+    accuracy: Number,
+    completedAt: { type: Date, default: Date.now }
   }],
 
   // ARRAYS MATCHING FLUTTER UI:
@@ -87,12 +100,19 @@ const userSchema = new mongoose.Schema({
     date: String,
     duration: String,
     accuracy: Number,
-    chordsCount: Number
+    chordsCount: Number,
+    createdAt: { type: Date, default: Date.now }
+  }],
+
+  // Song practice tracking
+  favoriteSongs: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Song'
   }],
 
   // Fields needed for Password Reset:
   resetPasswordToken: String,
   resetPasswordExpires: Date,
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

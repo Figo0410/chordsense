@@ -1,13 +1,14 @@
 import 'package:chordsense/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'tuner_screen.dart'; // Import TunerScreen widget
-import 'learning_path_screen.dart'; // Import learning path screen
-import 'practice_session_screen.dart'; // Import PracticeSessionScreen widget
-import 'progress_screen.dart'; // Import ProgressScreen widget
-import 'ranking_screen.dart'; // Import RankingScreen widget
-import 'achievements_screen.dart'; // Import AchievementsScreen widget
-import 'song_library_screen.dart'; // Import SongLibraryScreen widget
+import 'tuner_screen.dart';
+import 'learning_path_screen.dart';
+import 'practice_session_screen.dart';
+import 'progress_screen.dart';
+import 'ranking_screen.dart';
+import 'achievements_screen.dart';
+import 'song_library_screen.dart';
+import 'services/api_service.dart';
 
 class UserDashboard extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -19,25 +20,23 @@ class UserDashboard extends StatefulWidget {
 }
 
 class _UserDashboardState extends State<UserDashboard> {
-  int _currentIndex = 0; // Tracks bottom nav state
+  int _currentIndex = 0;
 
-  // 1. Declare class-level fields (Accessible anywhere in this class)
   String userName = 'User';
   int currentLevel = 1;
   int totalPoints = 0;
   double progressPercent = 0.0;
   int nextLevelPoints = 1000;
   String currentChord = 'C Major';
+  List<String> currentLevelChords = ["C Major", "G Major"];
 
   int accuracy = 0;
   int streak = 0;
   int chordsMastered = 0;
 
-  bool hasCompletedTuner = false; // REAL DATA GUARD FOR TUNER REQUIREMENT
-
+  bool hasCompletedTuner = false;
   Map<String, dynamic> userProfileData = {};
 
-  // Helper method to safely extract raw String ID whether it's String or Map ({$oid: "..."})
   String? _getUserId() {
     if (userProfileData.containsKey('_id')) {
       final idVal = userProfileData['_id'];
@@ -59,13 +58,12 @@ class _UserDashboardState extends State<UserDashboard> {
     if (widget.userData != null) {
       _loadUserData(widget.userData!);
     }
+    _loadCurrentLevelData();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
-    // 2. Extract MongoDB data passed from LoginScreen or Main route settings
     final Map<String, dynamic>? routeUserData =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
@@ -88,10 +86,8 @@ class _UserDashboardState extends State<UserDashboard> {
       streak = (userData['streak'] as num?)?.toInt() ?? 0;
       chordsMastered = (userData['chordsMastered'] as num?)?.toInt() ?? 0;
 
-      // Extract real tuner completion status (defaults to false only if missing)
       hasCompletedTuner = userData['hasCompletedTuner'] == true;
 
-      // DYNAMIC CALCULATION:
       if (nextLevelPoints > 0) {
         progressPercent = (totalPoints / nextLevelPoints) * 100;
         progressPercent = progressPercent.clamp(0.0, 100.0);
@@ -101,12 +97,41 @@ class _UserDashboardState extends State<UserDashboard> {
     });
   }
 
-  // Helper method to check if user can proceed to practice or must see the tuning modal
-  void _handlePracticeAccess() {
+  Future<void> _loadCurrentLevelData() async {
+    try {
+      final paths = await ApiService.getLearningPaths();
+      if (paths.isNotEmpty) {
+        final currentPath = paths.firstWhere(
+          (p) => (p['levelNumber'] ?? p['level']) == currentLevel,
+          orElse: () => paths.first,
+        );
+        if (currentPath != null && currentPath['chords'] is List) {
+          setState(() {
+            currentLevelChords = (currentPath['chords'] as List)
+                .map((e) => e.toString())
+                .toList();
+          });
+        }
+      }
+    } catch (_) {}
+  }
+
+  void _handlePracticeAccess({String? targetChord, int? levelNumber}) {
     if (hasCompletedTuner) {
-      setState(() {
-        _currentIndex = 1; // Direct to Practice tab
-      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PracticeSessionScreen(
+            userId: _getUserId(),
+            levelNumber: levelNumber ?? currentLevel,
+            targetChord: targetChord ?? currentChord,
+            levelChords: currentLevelChords,
+            onGoBack: () {
+              Navigator.pop(context);
+            },
+          ),
+        ),
+      );
     } else {
       _showTuningModal(context);
     }
@@ -115,13 +140,10 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF030712), // Deep slate-950 base
+      backgroundColor: const Color(0xFF030712),
       body: Stack(
         children: [
-          // 3. Call _buildBodyContent() WITHOUT passing arguments
           _buildBodyContent(),
-
-          // --- FIXED CUSTOM BOTTOM NAV BAR ---
           Positioned(
             left: 0,
             right: 0,
@@ -133,16 +155,19 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  // Helper method to decide what to display on the screen
   Widget _buildBodyContent() {
     switch (_currentIndex) {
       case 0:
         return _buildHomeDashboard();
       case 1:
         return PracticeSessionScreen(
+          userId: _getUserId(),
+          levelNumber: currentLevel,
+          targetChord: currentChord,
+          levelChords: currentLevelChords,
           onGoBack: () {
             setState(() {
-              _currentIndex = 0; // Switch back to Home tab
+              _currentIndex = 0;
             });
           },
         );
@@ -153,7 +178,7 @@ class _UserDashboardState extends State<UserDashboard> {
             setState(() {
               hasCompletedTuner = true;
               userProfileData['hasCompletedTuner'] = true;
-              _currentIndex = 1; // Direct to practice tab upon completing tuner
+              _currentIndex = 1;
             });
           },
         );
@@ -174,7 +199,6 @@ class _UserDashboardState extends State<UserDashboard> {
     }
   }
 
-  // Requires the user to complete the guitar tuner setup before starting practice.
   void _showTuningModal(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -437,7 +461,6 @@ class _UserDashboardState extends State<UserDashboard> {
                           child: InkWell(
                             onTap: () {
                               Navigator.pop(context);
-                              // Redirect user directly to the Tuner Screen tab to finish tuning
                               setState(() {
                                 _currentIndex = 2;
                               });
@@ -698,7 +721,10 @@ class _UserDashboardState extends State<UserDashboard> {
                     color: Colors.transparent,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: _handlePracticeAccess,
+                      onTap: () => _handlePracticeAccess(
+                        targetChord: currentChord,
+                        levelNumber: currentLevel,
+                      ),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
                         child: Row(
@@ -923,7 +949,10 @@ class _UserDashboardState extends State<UserDashboard> {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(10),
-                            onTap: _handlePracticeAccess,
+                            onTap: () => _handlePracticeAccess(
+                              targetChord: currentChord,
+                              levelNumber: currentLevel,
+                            ),
                             child: const Center(
                               child: Text(
                                 "Continue Learning",
@@ -1173,11 +1202,7 @@ class _UserDashboardState extends State<UserDashboard> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildNavItem(0, "Home", Icons.home),
-          _buildNavItem(
-            1,
-            "Practice",
-            Icons.play_arrow_rounded,
-          ), // Practice Tab
+          _buildNavItem(1, "Practice", Icons.play_arrow_rounded),
           _buildNavItem(2, "Tuner", Icons.tune),
           _buildNavItem(3, "Ranking", Icons.star),
           _buildNavItem(4, "Profile", Icons.person),
@@ -1195,9 +1220,11 @@ class _UserDashboardState extends State<UserDashboard> {
     return Expanded(
       child: InkWell(
         onTap: () {
-          // If user taps the Practice tab (index 1), run the tuner completion check first
           if (index == 1) {
-            _handlePracticeAccess();
+            _handlePracticeAccess(
+              targetChord: currentChord,
+              levelNumber: currentLevel,
+            );
           } else {
             setState(() {
               _currentIndex = index;

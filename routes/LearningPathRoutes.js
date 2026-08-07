@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const LearningPath = require('../models/LearningPath');
 
-// GET /api/learning-path - Fetch all levels sorted by level number
+// GET /api/learning-path - Fetch all levels sorted by level number with populated chord data
 router.get('/', async (req, res) => {
   try {
-    const levels = await LearningPath.find().sort({ levelNumber: 1 });
+    const levels = await LearningPath.find()
+      .populate('chords')
+      .sort({ levelNumber: 1 });
     res.status(200).json(levels);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
