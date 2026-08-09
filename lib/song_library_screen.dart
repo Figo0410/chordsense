@@ -1,34 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'guided_play_screen.dart'; // Import GuidedPlayScreen widget
-import 'request_song_screen.dart'; // Import RequestSongScreen widget
-import 'services/api_service.dart'; // Import ApiService
+import 'guided_play_screen.dart';
+import 'request_song_screen.dart';
+import 'services/api_service.dart';
 
-enum Difficulty { all, beginner, intermediate }
+enum Difficulty { all, beginner, intermediate, advanced }
 
 class Song {
+  final String id;
   final String title;
   final String artist;
   final Difficulty difficulty;
+  final String description;
   final int chordCount;
   final int durationMinutes;
   final List<String> chords;
+  final List<String> progression;
 
   Song({
+    required this.id,
     required this.title,
     required this.artist,
     required this.difficulty,
+    required this.description,
     required this.chordCount,
     required this.durationMinutes,
     required this.chords,
+    required this.progression,
   });
 
-  // Factory constructor to safely map JSON from MongoDB songRoutes.js
   factory Song.fromJson(Map<String, dynamic> json) {
     Difficulty diff = Difficulty.beginner;
-    final level = (json['level'] ?? '').toString().toLowerCase();
-    if (level == 'intermediate') {
+    final levelVal = (json['difficulty'] ?? json['level'] ?? '')
+        .toString()
+        .toLowerCase();
+
+    if (levelVal == 'intermediate') {
       diff = Difficulty.intermediate;
+    } else if (levelVal == 'advanced') {
+      diff = Difficulty.advanced;
     }
 
     List<String> parsedChords = [];
@@ -37,17 +47,35 @@ class Song {
     if (chordsData is List) {
       parsedChords = chordsData.map((c) => c.toString()).toList();
     } else if (chordsData is String && chordsData.isNotEmpty) {
-      // If chords were saved as a single String or comma-separated String
       parsedChords = chordsData.split(',').map((c) => c.trim()).toList();
     }
 
+    List<String> parsedProgression = [];
+    final progressionData = json['progression'];
+    if (progressionData is List) {
+      for (var item in progressionData) {
+        if (item is Map && item.containsKey('chord')) {
+          parsedProgression.add(item['chord'].toString());
+        } else if (item is String) {
+          parsedProgression.add(item);
+        }
+      }
+    }
+
+    if (parsedProgression.isEmpty) {
+      parsedProgression = List.from(parsedChords);
+    }
+
     return Song(
+      id: json['_id'] ?? '',
       title: json['title'] ?? 'Untitled Song',
       artist: json['artist'] ?? 'Unknown Artist',
       difficulty: diff,
+      description: json['description'] ?? 'No description available.',
       chordCount: parsedChords.length,
       durationMinutes: json['durationMinutes'] ?? 3,
       chords: parsedChords,
+      progression: parsedProgression,
     );
   }
 }
@@ -66,6 +94,8 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
   List<Song> _allSongs = [];
   bool _isLoading = true;
   String? _errorMessage;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void initState() {
@@ -73,7 +103,18 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
     _fetchSongsFromBackend();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _fetchSongsFromBackend() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     try {
       final songsJson = await ApiService.getSongs();
       setState(() {
@@ -89,12 +130,19 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
   }
 
   List<Song> get _filteredSongs {
-    if (_selectedDifficulty == Difficulty.all) {
-      return _allSongs;
-    }
-    return _allSongs
-        .where((song) => song.difficulty == _selectedDifficulty)
-        .toList();
+    return _allSongs.where((song) {
+      final matchesDifficulty =
+          _selectedDifficulty == Difficulty.all ||
+          song.difficulty == _selectedDifficulty;
+
+      final query = _searchQuery.trim().toLowerCase();
+      final matchesSearch =
+          query.isEmpty ||
+          song.title.toLowerCase().contains(query) ||
+          song.artist.toLowerCase().contains(query);
+
+      return matchesDifficulty && matchesSearch;
+    }).toList();
   }
 
   @override
@@ -102,41 +150,110 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
     final displayedSongs = _filteredSongs;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF070B14), // Deep dark background
+      backgroundColor: const Color(0xFF070B14),
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(),
             Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFF0EA5E9),
+              child: RefreshIndicator(
+                color: const Color(0xFF0EA5E9),
+                onRefresh: _fetchSongsFromBackend,
+                child: _isLoading
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(color: Color(0xFF0EA5E9)),
+                            SizedBox(height: 12),
+                            Text(
+                              "Loading songs...",
+                              style: TextStyle(
+                                color: Color(0xFF94A3B8),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                LucideIcons.triangle_alert,
+                                color: Colors.redAccent,
+                                size: 48,
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                "Unable to load songs.",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              ElevatedButton.icon(
+                                onPressed: _fetchSongsFromBackend,
+                                icon: const Icon(
+                                  LucideIcons.rotate_ccw,
+                                  size: 16,
+                                ),
+                                label: const Text("Try Again"),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0EA5E9),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 20,
+                                    vertical: 12,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 12),
+                            _buildSearchBar(),
+                            const SizedBox(height: 16),
+                            _buildFilterSection(),
+                            const SizedBox(height: 20),
+                            _buildSubHeader(displayedSongs.length),
+                            const SizedBox(height: 16),
+                            if (displayedSongs.isEmpty)
+                              _buildEmptyState()
+                            else
+                              ...displayedSongs.map(
+                                (song) => _buildSongCard(song),
+                              ),
+                            const SizedBox(height: 20),
+                          ],
+                        ),
                       ),
-                    )
-                  : _errorMessage != null
-                  ? Center(
-                      child: Text(
-                        "Failed to load songs.\n$_errorMessage",
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.redAccent),
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 12),
-                          _buildFilterSection(),
-                          const SizedBox(height: 20),
-                          _buildSubHeader(displayedSongs.length),
-                          const SizedBox(height: 16),
-                          ...displayedSongs.map((song) => _buildSongCard(song)),
-                          const SizedBox(height: 20),
-                        ],
-                      ),
-                    ),
+              ),
             ),
           ],
         ),
@@ -200,6 +317,51 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
     );
   }
 
+  Widget _buildSearchBar() {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF1E293B)),
+      ),
+      child: TextField(
+        controller: _searchController,
+        style: const TextStyle(color: Colors.white, fontSize: 14),
+        onChanged: (val) {
+          setState(() {
+            _searchQuery = val;
+          });
+        },
+        decoration: InputDecoration(
+          hintText: "Search by song title or artist...",
+          hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 13),
+          prefixIcon: const Icon(
+            LucideIcons.search,
+            color: Color(0xFF64748B),
+            size: 18,
+          ),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(
+                    LucideIcons.x,
+                    color: Color(0xFF64748B),
+                    size: 16,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() {
+                      _searchQuery = "";
+                    });
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -219,14 +381,19 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: [
-            _buildFilterChip("All", Difficulty.all),
-            const SizedBox(width: 8),
-            _buildFilterChip("Beginner", Difficulty.beginner),
-            const SizedBox(width: 8),
-            _buildFilterChip("Intermediate", Difficulty.intermediate),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _buildFilterChip("All", Difficulty.all),
+              const SizedBox(width: 8),
+              _buildFilterChip("Beginner", Difficulty.beginner),
+              const SizedBox(width: 8),
+              _buildFilterChip("Intermediate", Difficulty.intermediate),
+              const SizedBox(width: 8),
+              _buildFilterChip("Advanced", Difficulty.advanced),
+            ],
+          ),
         ),
       ],
     );
@@ -273,7 +440,6 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
         ),
         TextButton(
           onPressed: () {
-            // Action for song request
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const RequestSongScreen(),
@@ -300,8 +466,70 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
     );
   }
 
+  Widget _buildEmptyState() {
+    final isSearching = _searchQuery.trim().isNotEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F172A).withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF1E293B)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isSearching ? LucideIcons.search_x : LucideIcons.music,
+            color: const Color(0xFF64748B),
+            size: 48,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isSearching ? "No songs found." : "No songs available yet.",
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isSearching
+                ? "Try searching for a different song title or artist."
+                : "Check back later for new guitar chords!",
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSongCard(Song song) {
-    final bool isBeginner = song.difficulty == Difficulty.beginner;
+    final String diffLabel = song.difficulty == Difficulty.beginner
+        ? "Beginner"
+        : song.difficulty == Difficulty.intermediate
+        ? "Intermediate"
+        : "Advanced";
+
+    final Color diffColor = song.difficulty == Difficulty.beginner
+        ? const Color(0xFF34D399)
+        : song.difficulty == Difficulty.intermediate
+        ? const Color(0xFFFBBF24)
+        : const Color(0xFFF87171);
+
+    final Color diffBg = song.difficulty == Difficulty.beginner
+        ? const Color(0xFF065F46).withOpacity(0.4)
+        : song.difficulty == Difficulty.intermediate
+        ? const Color(0xFF78350F).withOpacity(0.4)
+        : const Color(0xFF7F1D1D).withOpacity(0.4);
+
+    final Color diffBorder = song.difficulty == Difficulty.beginner
+        ? const Color(0xFF059669)
+        : song.difficulty == Difficulty.intermediate
+        ? const Color(0xFFD97706)
+        : const Color(0xFFDC2626);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -317,7 +545,6 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Square Icon Box
               Container(
                 width: 48,
                 height: 48,
@@ -333,7 +560,6 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              // Title & Artist
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -355,7 +581,6 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Difficulty Badge & Meta info
                     Row(
                       children: [
                         Container(
@@ -364,22 +589,14 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                             vertical: 3,
                           ),
                           decoration: BoxDecoration(
-                            color: isBeginner
-                                ? const Color(0xFF065F46).withOpacity(0.4)
-                                : const Color(0xFF78350F).withOpacity(0.4),
+                            color: diffBg,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isBeginner
-                                  ? const Color(0xFF059669)
-                                  : const Color(0xFFD97706),
-                            ),
+                            border: Border.all(color: diffBorder),
                           ),
                           child: Text(
-                            isBeginner ? "Beginner" : "Intermediate",
+                            diffLabel,
                             style: TextStyle(
-                              color: isBeginner
-                                  ? const Color(0xFF34D399)
-                                  : const Color(0xFFFBBF24),
+                              color: diffColor,
                               fontSize: 10,
                               fontWeight: FontWeight.bold,
                             ),
@@ -400,8 +617,16 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
               ),
             ],
           ),
+          if (song.description.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              song.description,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11),
+            ),
+          ],
           const SizedBox(height: 12),
-          // Chord Chips
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -432,19 +657,21 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                 .toList(),
           ),
           const SizedBox(height: 16),
-          // Gradient Play Button
           SizedBox(
             width: double.infinity,
             height: 42,
             child: ElevatedButton(
               onPressed: () {
-                // Trigger Guided Play logic
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (context) => GuidedPlayScreen(
-                      songTitle: song.title,
-                      artist: song.artist,
-                      songChords: song.chords,
+                      lessonData: {
+                        'title': song.title,
+                        'artist': song.artist,
+                        'chords': song.progression.isNotEmpty
+                            ? song.progression
+                            : song.chords,
+                      },
                     ),
                   ),
                 );
@@ -489,7 +716,6 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
   }
 }
 
-// Helper class to remove padding inside Ink buttons cleanly
 class ZeroPadding {
   static const EdgeInsets zero = EdgeInsets.zero;
 }
