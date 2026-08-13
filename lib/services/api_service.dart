@@ -7,7 +7,9 @@ class ApiService {
     if (kIsWeb) {
       return 'http://localhost:5000/api';
     } else {
-      return 'http://10.0.2.2:5000/api';
+      return 'http://10.0.2.2:5000/api'; // Emulator returrn
+
+      // return 'http://192.168.254.109:5000/api';// PHYSICAL PHONE return
     }
   }
 
