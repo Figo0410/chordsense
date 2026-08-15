@@ -26,6 +26,7 @@ class _UserDashboardState extends State<UserDashboard> {
   int currentLevel = 1;
   int totalPoints = 0;
   double progressPercent = 0.0;
+  int currentLevelBasePoints = 0;
   int nextLevelPoints = 1000;
   String currentChord = 'C Major';
   List<String> currentLevelChords = ["C Major", "G Major"];
@@ -88,8 +89,17 @@ class _UserDashboardState extends State<UserDashboard> {
 
       hasCompletedTuner = userData['hasCompletedTuner'] == true;
 
-      if (nextLevelPoints > 0) {
-        progressPercent = (totalPoints / nextLevelPoints) * 100;
+      // Base points dynamic calculation depending on current level
+      currentLevelBasePoints = (currentLevel - 1) * 1000;
+      if (nextLevelPoints <= currentLevelBasePoints) {
+        nextLevelPoints = currentLevel * 1000;
+      }
+
+      int pointRange = nextLevelPoints - currentLevelBasePoints;
+      int pointsEarnedInLevel = totalPoints - currentLevelBasePoints;
+
+      if (pointRange > 0) {
+        progressPercent = (pointsEarnedInLevel / pointRange) * 100;
         progressPercent = progressPercent.clamp(0.0, 100.0);
       } else {
         progressPercent = 0.0;
@@ -509,6 +519,11 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   Widget _buildHomeDashboard() {
+    int pointsRemaining = (nextLevelPoints - totalPoints).clamp(
+      0,
+      nextLevelPoints,
+    );
+
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 120),
       child: Column(
@@ -642,7 +657,7 @@ class _UserDashboardState extends State<UserDashboard> {
                                 ),
                               ),
                               Text(
-                                "${nextLevelPoints - totalPoints} to next level",
+                                "$pointsRemaining to next level",
                                 style: const TextStyle(
                                   color: Color(0xFF475569),
                                   fontSize: 11,
@@ -1003,7 +1018,7 @@ class _UserDashboardState extends State<UserDashboard> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "${nextLevelPoints - totalPoints} points needed",
+                                "$pointsRemaining points needed",
                                 style: const TextStyle(
                                   color: Color(0xFF475569),
                                   fontSize: 11,
@@ -1028,7 +1043,7 @@ class _UserDashboardState extends State<UserDashboard> {
                           value: progressPercent / 100,
                           minHeight: 6,
                           backgroundColor: const Color(0xFF0F172A),
-                          color: const Color(0xFF1E293B),
+                          color: const Color(0xFF6366F1),
                         ),
                       ),
                     ],

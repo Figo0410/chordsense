@@ -344,8 +344,6 @@ class ApiService {
             'progress': 1.0,
           },
           'chordsCompleted': chordsList,
-          'currentLevel': levelId + 1,
-          'progressPercent': 100,
         }),
       );
       if (progressResponse.statusCode == 200) {

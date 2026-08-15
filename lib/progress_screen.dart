@@ -35,7 +35,7 @@ class LearningChord {
     required this.progress,
   });
 
-  // 👈 Add this constructor
+  //Add this constructor
   factory LearningChord.fromMap(Map<String, dynamic> map) {
     return LearningChord(
       name: map['name'] ?? '',
@@ -60,7 +60,7 @@ class PracticeSession {
     required this.chordsCount,
   });
 
-  // 👈 Add this constructor
+  //Add this constructor
   factory PracticeSession.fromMap(Map<String, dynamic> map) {
     return PracticeSession(
       day: map['day'] ?? '',

@@ -460,8 +460,24 @@ router.patch('/user/:id/progress', async (req, res) => {
       }
     }
 
-    if (user.nextLevelPoints > 0) {
-      user.progressPercent = Math.min(100.0, (user.totalPoints / user.nextLevelPoints) * 100);
+    // Dynamic level thresholds calculation to fix progress Math
+    const activeLevel = user.currentLevel || 1;
+    const basePoints = (activeLevel - 1) * 1000;
+    let targetPoints = user.nextLevelPoints || (activeLevel * 1000);
+
+    if (targetPoints <= basePoints) {
+      targetPoints = activeLevel * 1000;
+      user.nextLevelPoints = targetPoints;
+    }
+
+    const range = targetPoints - basePoints;
+    const pointsInLevel = user.totalPoints - basePoints;
+
+    if (range > 0) {
+      const calcPercent = (pointsInLevel / range) * 100;
+      user.progressPercent = Math.min(100.0, Math.max(0.0, calcPercent));
+    } else {
+      user.progressPercent = 0.0;
     }
 
     await user.save();
@@ -528,6 +544,26 @@ router.post('/save-session', async (req, res) => {
           user.currentLevel = levelId + 1;
         }
       }
+    }
+
+    // Calculate baseline and next level targets safely
+    const currentLvl = user.currentLevel || 1;
+    const basePoints = (currentLvl - 1) * 1000;
+    let targetPoints = user.nextLevelPoints || (currentLvl * 1000);
+
+    if (targetPoints <= basePoints) {
+      targetPoints = currentLvl * 1000;
+      user.nextLevelPoints = targetPoints;
+    }
+
+    const range = targetPoints - basePoints;
+    const pointsInLevel = user.totalPoints - basePoints;
+
+    if (range > 0) {
+      const calcPercent = (pointsInLevel / range) * 100;
+      user.progressPercent = Math.min(100.0, Math.max(0.0, calcPercent));
+    } else {
+      user.progressPercent = 0.0;
     }
 
     await user.save();
