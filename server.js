@@ -1,6 +1,6 @@
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first'); // Standardizes IP lookup
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+//const dns = require('dns');
+//dns.setDefaultResultOrder('ipv4first'); // Standardizes IP lookup
+//dns.setServers(['8.8.8.8', '1.1.1.1']); // 1 - 3 is for when it has a wifi
 
 // server.js
 const express = require('express');
@@ -37,6 +37,8 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
 });
+
+
 
 server.on('error', (err) => {
   console.error('Server failed to start:', err);
