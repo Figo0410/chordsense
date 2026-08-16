@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
@@ -250,6 +251,16 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     _audioCapture.stop().catchError((e) => debugPrint("Stop error: $e"));
   }
 
+  // Calculate Root Mean Square (RMS) signal volume level to filter out silence/ambient noise
+  double _calculateRMS(List<double> buffer) {
+    if (buffer.isEmpty) return 0.0;
+    double sumSquares = 0.0;
+    for (double sample in buffer) {
+      sumSquares += sample * sample;
+    }
+    return math.sqrt(sumSquares / buffer.length);
+  }
+
   void _onAudioData(dynamic obj) async {
     if (!_isListening || _isProcessingAudio || !mounted) return;
 
@@ -261,6 +272,12 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     }
 
     if (audioBuffer.isEmpty) return;
+
+    // Check RMS volume threshold to ensure user actually strummed a chord
+    double rmsVolume = _calculateRMS(audioBuffer);
+    if (rmsVolume < 0.03) {
+      return; // Ignore background silence / ambient room noise
+    }
 
     try {
       int targetLength = 2048;
@@ -279,7 +296,8 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
         float32buffer,
       );
 
-      if (result.pitched && result.pitch > 60.0 && result.pitch < 1000.0) {
+      // Filter pitches strictly within standard guitar frequency range (E2 ~82Hz to E5 ~659Hz)
+      if (result.pitched && result.pitch >= 80.0 && result.pitch <= 700.0) {
         _isProcessingAudio = true;
         _stopListeningSync();
         _processFrequency(result.pitch);
@@ -394,13 +412,17 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     }
   }
 
+  // Frequency matching with refined pitch window calculation
   bool _evaluateChordMatch(double detected, List<double> targets) {
     for (double target in targets) {
-      if ((detected - target).abs() <= 12.0) return true;
-      if ((detected - (target * 2)).abs() <= 12.0 ||
-          (detected - (target / 2)).abs() <= 12.0) {
-        return true;
-      }
+      // Direct note hit within tolerance window (max 6.0 Hz variance)
+      if ((detected - target).abs() <= 6.0) return true;
+
+      // Octave higher match check with tight tolerance
+      if ((detected - (target * 2.0)).abs() <= 8.0) return true;
+
+      // Octave lower match check with tight tolerance
+      if ((detected - (target / 2.0)).abs() <= 4.0) return true;
     }
     return false;
   }
