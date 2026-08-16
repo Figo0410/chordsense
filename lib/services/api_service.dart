@@ -9,7 +9,7 @@ class ApiService {
     } else {
       return 'http://10.0.2.2:5000/api'; // Emulator returrn
 
-      // return 'http://192.168.254.109:5000/api';// PHYSICAL PHONE return
+       //return 'http://192.168.254.112:5000/api';// PHYSICAL PHONE return
     }
   }
 
