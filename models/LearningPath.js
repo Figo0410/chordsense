@@ -19,7 +19,17 @@ const LearningPathSchema = new mongoose.Schema({
   // Threshold accuracy needed to consider the level passed (e.g., 80%)
   passingAccuracy: { type: Number, default: 75 },
   
-  status: { type: String, enum: ['Active', 'Draft', 'Archived'], default: 'Active' }
+  status: { type: String, enum: ['Active', 'Draft', 'Archived'], default: 'Active' },
+
+  // --- AUTOMATIC SYNC TRACKING ---
+  isSynced: {
+    type: Boolean,
+    default: false
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now
+  }
 }, { timestamps: true });
 
 // Added 'learning_paths' as the 3rd argument to map directly to your MongoDB collection name

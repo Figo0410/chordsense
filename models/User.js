@@ -113,6 +113,16 @@ const userSchema = new mongoose.Schema({
   // Fields needed for Password Reset:
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+
+  // --- AUTOMATIC SYNC TRACKING ---
+  isSynced: {
+    type: Boolean,
+    default: false
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

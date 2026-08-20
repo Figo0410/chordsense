@@ -1,15 +1,84 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'dart:io';
 
 class ApiService {
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:5000/api';
-    } else {
-      // return 'http://10.0.2.2:5000/api'; // Emulator returrn
+  static String? _cachedBaseUrl;
 
-       return 'http://192.168.43.208:5000/api';// PHYSICAL PHONE return
+  /// Candidate list of host IPs to scan dynamically (Add any common static IP here)
+  static const List<String> _candidateHosts = [
+    '192.168.254.112', // Physical phone Wi-Fi
+    '192.168.43.208',  // Physical phone Hotspot
+    '10.0.2.2',        // Android Emulator Loopback
+    'localhost',       // iOS Simulator / Web
+  ];
+
+  static String get baseUrl {
+    if (_cachedBaseUrl != null) return _cachedBaseUrl!;
+
+    if (kIsWeb) {
+      _cachedBaseUrl = 'http://localhost:5000/api';
+      return _cachedBaseUrl!;
+    }
+
+    // Default fallback
+    return 'http://192.168.254.112:5000/api';
+  }
+
+  /// Clears the cached base URL to allow re-detection on environment change
+  static void resetCachedUrl() {
+    _cachedBaseUrl = null;
+  }
+
+  /// Automatically resolves and sets the reachable base URL across environments
+  static Future<String> initBaseUrl() async {
+    if (kIsWeb) {
+      _cachedBaseUrl = 'http://localhost:5000/api';
+      return _cachedBaseUrl!;
+    }
+
+    // Test existing cached URL first if available
+    if (_cachedBaseUrl != null) {
+      final Uri uri = Uri.parse(_cachedBaseUrl!);
+      if (await _isHostReachable(uri.host, uri.port)) {
+        return _cachedBaseUrl!;
+      }
+    }
+
+    // Ping candidate list dynamically
+    for (String host in _candidateHosts) {
+      if (await _isHostReachable(host, 5000)) {
+        _cachedBaseUrl = 'http://$host:5000/api';
+        return _cachedBaseUrl!;
+      }
+    }
+
+    // Default fallback
+    _cachedBaseUrl = 'http://192.168.254.112:5000/api';
+    return _cachedBaseUrl!;
+  }
+
+  /// Helper utility to ping host socket on server port
+  static Future<bool> _isHostReachable(String host, int port) async {
+    try {
+      final socket = await Socket.connect(host, port, timeout: const Duration(milliseconds: 800));
+      socket.destroy();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Helper wrapper to execute HTTP requests with automatic IP recovery on failure
+  static Future<http.Response> _safeApiCall(Future<http.Response> Function() requestFn) async {
+    try {
+      return await requestFn();
+    } catch (e) {
+      // Clear cached URL and re-detect environment on socket error
+      resetCachedUrl();
+      await initBaseUrl();
+      return await requestFn();
     }
   }
 
@@ -17,11 +86,11 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> body,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl$endpoint'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(body),
-    );
+    ));
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -36,15 +105,28 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> syncWithCloud() async {
+    final response = await _safeApiCall(() => http.post(
+      Uri.parse('$baseUrl/sync/push'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Database sync failed or no internet connection.');
+    }
+  }
+
   static Future<Map<String, dynamic>> login(
     String username,
     String password,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'username': username, 'password': password}),
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -66,7 +148,7 @@ class ApiService {
     String email,
     String password,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/send-register-otp'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -74,7 +156,7 @@ class ApiService {
         'email': email,
         'password': password,
       }),
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -95,11 +177,11 @@ class ApiService {
     String email,
     String code,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/verify-register-otp'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'code': code}),
-    );
+    ));
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -121,7 +203,7 @@ class ApiService {
     String email,
     String password,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -129,7 +211,7 @@ class ApiService {
         'email': email,
         'password': password,
       }),
-    );
+    ));
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -147,11 +229,11 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> forgotPassword(String email) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/forgot-password'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email}),
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -173,7 +255,7 @@ class ApiService {
     String resetToken,
     String newPassword,
   ) async {
-    final response = await http.post(
+    final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/auth/reset-password'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
@@ -181,7 +263,7 @@ class ApiService {
         'resetToken': resetToken,
         'newPassword': newPassword,
       }),
-    );
+    ));
 
     final contentType = response.headers['content-type'] ?? '';
     if (contentType.contains('application/json')) {
@@ -196,10 +278,10 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getSongs() async {
-    final response = await http.get(
+    final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/songs'),
       headers: {'Content-Type': 'application/json'},
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -209,10 +291,10 @@ class ApiService {
   }
 
   static Future<List<dynamic>> searchSongs(String query) async {
-    final response = await http.get(
+    final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/songs/search?q=${Uri.encodeComponent(query)}'),
       headers: {'Content-Type': 'application/json'},
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -222,10 +304,10 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getSongById(String id) async {
-    final response = await http.get(
+    final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/songs/$id'),
       headers: {'Content-Type': 'application/json'},
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -235,10 +317,10 @@ class ApiService {
   }
 
   static Future<List<dynamic>> getLearningPaths() async {
-    final response = await http.get(
+    final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/learning-path'),
       headers: {'Content-Type': 'application/json'},
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -248,10 +330,10 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getUserProfile(String userId) async {
-    final response = await http.get(
+    final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/auth/user/$userId'),
       headers: {'Content-Type': 'application/json'},
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -264,11 +346,11 @@ class ApiService {
     String userId,
     Map<String, dynamic> data,
   ) async {
-    final response = await http.patch(
+    final response = await _safeApiCall(() => http.patch(
       Uri.parse('$baseUrl/auth/user/$userId/progress'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(data),
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -281,11 +363,11 @@ class ApiService {
     String userId,
     bool hasCompletedTuner,
   ) async {
-    final response = await http.patch(
+    final response = await _safeApiCall(() => http.patch(
       Uri.parse('$baseUrl/auth/user/$userId/tuner-status'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'hasCompletedTuner': hasCompletedTuner}),
-    );
+    ));
 
     if (response.statusCode == 200) {
       return jsonDecode(response.body);
@@ -329,7 +411,7 @@ class ApiService {
           .where((e) => e.isNotEmpty)
           .toList();
 
-      final progressResponse = await http.patch(
+      final progressResponse = await _safeApiCall(() => http.patch(
         Uri.parse('$baseUrl/auth/user/$userId/progress'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -345,7 +427,7 @@ class ApiService {
           },
           'chordsCompleted': chordsList,
         }),
-      );
+      ));
       if (progressResponse.statusCode == 200) {
         result = jsonDecode(progressResponse.body);
       }

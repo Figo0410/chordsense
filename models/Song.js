@@ -61,6 +61,16 @@ const songSchema = new mongoose.Schema({
     enum: ['Active', 'published', 'Draft', 'Archived'],
     default: 'published',
   },
+
+  // --- AUTOMATIC SYNC TRACKING ---
+  isSynced: {
+    type: Boolean,
+    default: false
+  },
+  lastUpdated: {
+    type: Date,
+    default: Date.now
+  }
 }, { timestamps: true });
 
 // Pre-save middleware to synchronize level/difficulty and array/string chords

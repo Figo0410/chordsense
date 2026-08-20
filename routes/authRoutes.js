@@ -59,9 +59,20 @@ router.post('/send-register-otp', async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    // Online/Offline Hybrid Check
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log(`[ONLINE] Verification email sent to ${email}`);
+      return res.status(200).json({ message: 'Verification code sent to your email!' });
+    } catch (mailError) {
+      console.log('\n==================================================');
+      console.log(`[OFFLINE DEMO MODE] Could not send email via network.`);
+      console.log(`[OFFLINE DEMO MODE] Registration OTP for ${email}: [ ${otpCode} ]`);
+      console.log('==================================================\n');
 
-    res.status(200).json({ message: 'Verification code sent to your email!' });
+      return res.status(200).json({ message: 'Verification code generated! (Offline Mode)' });
+    }
+
   } catch (error) {
     res.status(500).json({ message: 'Error sending verification email', error: error.message });
   }
@@ -279,9 +290,19 @@ router.post('/forgot-password', async (req, res) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    // Online/Offline Hybrid Check
+    try {
+      await transporter.sendMail(mailOptions);
+      return res.json({ message: 'Reset code sent to your email!' });
+    } catch (mailError) {
+      console.log('\n==================================================');
+      console.log(`[OFFLINE DEMO MODE] Could not send password reset email via network.`);
+      console.log(`[OFFLINE DEMO MODE] Reset Code for ${email}: [ ${resetToken} ]`);
+      console.log('==================================================\n');
 
-    res.json({ message: 'Reset code sent to your email!' });
+      return res.json({ message: 'Reset code generated! (Offline Mode)' });
+    }
+
   } catch (error) {
     res.status(500).json({ message: 'Error sending email', error: error.message });
   }

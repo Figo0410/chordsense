@@ -13,8 +13,26 @@ import 'register_screen.dart';
 // Forgot Password screen
 import 'forgot_password_screen.dart';
 
-void main() {
+import './services/api_service.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 1. Launch the UI immediately so the screen doesn't freeze or stay white
   runApp(const ChordSenseApp());
+
+  // 2. Perform base URL detection & sync asynchronously in the background
+  _initServicesAndSync();
+}
+
+Future<void> _initServicesAndSync() async {
+  try {
+    await ApiService.initBaseUrl();
+    final syncResult = await ApiService.syncWithCloud();
+    debugPrint('Cloud Sync Success: $syncResult');
+  } catch (e) {
+    debugPrint('Cloud Sync Skipped/Failed: $e');
+  }
 }
 
 class ChordSenseApp extends StatelessWidget {
