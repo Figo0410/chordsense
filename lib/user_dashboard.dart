@@ -1,6 +1,7 @@
 import 'package:chordsense/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'dart:math' as math;
 import 'tuner_screen.dart';
 import 'learning_path_screen.dart';
 import 'practice_session_screen.dart';
@@ -89,14 +90,17 @@ class _UserDashboardState extends State<UserDashboard> {
 
       hasCompletedTuner = userData['hasCompletedTuner'] == true;
 
-      // Base points dynamic calculation depending on current level
+      // Dynamic calculation for level progress range
       currentLevelBasePoints = (currentLevel - 1) * 1000;
       if (nextLevelPoints <= currentLevelBasePoints) {
         nextLevelPoints = currentLevel * 1000;
       }
 
       int pointRange = nextLevelPoints - currentLevelBasePoints;
-      int pointsEarnedInLevel = totalPoints - currentLevelBasePoints;
+      int pointsEarnedInLevel = (totalPoints - currentLevelBasePoints).clamp(
+        0,
+        pointRange > 0 ? pointRange : 1000,
+      );
 
       if (pointRange > 0) {
         progressPercent = (pointsEarnedInLevel / pointRange) * 100;
@@ -519,10 +523,7 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   Widget _buildHomeDashboard() {
-    int pointsRemaining = (nextLevelPoints - totalPoints).clamp(
-      0,
-      nextLevelPoints,
-    );
+    int pointsRemaining = math.max(0, nextLevelPoints - totalPoints);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.only(bottom: 120),

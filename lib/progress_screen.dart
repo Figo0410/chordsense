@@ -13,14 +13,23 @@ class CompletedChord {
     required this.accuracy,
   });
 
-  //Add this constructor
-  factory CompletedChord.fromMap(Map<String, dynamic> map) {
-    return CompletedChord(
-      name: map['name'] ?? '',
-      date: map['date'] ?? '',
-      accuracy:
-          (map['accuracy'] as num?)?.toInt() ?? 0, // Ensure accuracy is an int
-    );
+  // Type safe factory parsing strings or maps seamlessly
+  factory CompletedChord.fromMap(dynamic item) {
+    if (item is String) {
+      return CompletedChord(
+        name: item,
+        date: 'Recently',
+        accuracy: 100,
+      );
+    } else if (item is Map) {
+      final map = Map<String, dynamic>.from(item);
+      return CompletedChord(
+        name: map['name']?.toString() ?? '',
+        date: map['date']?.toString() ?? 'Recently',
+        accuracy: (map['accuracy'] as num?)?.toInt() ?? 0,
+      );
+    }
+    return CompletedChord(name: '', date: '', accuracy: 0);
   }
 }
 
@@ -35,13 +44,22 @@ class LearningChord {
     required this.progress,
   });
 
-  //Add this constructor
-  factory LearningChord.fromMap(Map<String, dynamic> map) {
-    return LearningChord(
-      name: map['name'] ?? '',
-      attempts: map['attempts'] ?? 0,
-      progress: (map['progress'] as num?)?.toInt() ?? 0,
-    );
+  factory LearningChord.fromMap(dynamic item) {
+    if (item is String) {
+      return LearningChord(
+        name: item,
+        attempts: 1,
+        progress: 50,
+      );
+    } else if (item is Map) {
+      final map = Map<String, dynamic>.from(item);
+      return LearningChord(
+        name: map['name']?.toString() ?? '',
+        attempts: (map['attempts'] as num?)?.toInt() ?? 0,
+        progress: (map['progress'] as num?)?.toInt() ?? 0,
+      );
+    }
+    return LearningChord(name: '', attempts: 0, progress: 0);
   }
 }
 
@@ -60,15 +78,18 @@ class PracticeSession {
     required this.chordsCount,
   });
 
-  //Add this constructor
-  factory PracticeSession.fromMap(Map<String, dynamic> map) {
-    return PracticeSession(
-      day: map['day'] ?? '',
-      date: map['date'] ?? '',
-      duration: map['duration'] ?? '',
-      accuracy: (map['accuracy'] as num?)?.toInt() ?? 0,
-      chordsCount: (map['chordsCount'] as num?)?.toInt() ?? 0,
-    );
+  factory PracticeSession.fromMap(dynamic item) {
+    if (item is Map) {
+      final map = Map<String, dynamic>.from(item);
+      return PracticeSession(
+        day: map['day']?.toString() ?? 'Session',
+        date: map['date']?.toString() ?? '',
+        duration: map['duration']?.toString() ?? '0s',
+        accuracy: (map['accuracy'] as num?)?.toInt() ?? 0,
+        chordsCount: (map['chordsCount'] as num?)?.toInt() ?? 0,
+      );
+    }
+    return PracticeSession(day: '', date: '', duration: '', accuracy: 0, chordsCount: 0);
   }
 }
 
@@ -81,30 +102,19 @@ class ProgressScreen extends StatelessWidget {
     // Safely extract arrays from your MongoDB document
     final List<CompletedChord> completedChords =
         (userData['completedChords'] as List<dynamic>?)
-            ?.map(
-              (item) => CompletedChord.fromMap(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
+            ?.map((item) => CompletedChord.fromMap(item))
             .toList() ??
         [];
 
     final List<LearningChord> learningChords =
         (userData['learningChords'] as List<dynamic>?)
-            ?.map(
-              (item) =>
-                  LearningChord.fromMap(Map<String, dynamic>.from(item as Map)),
-            )
+            ?.map((item) => LearningChord.fromMap(item))
             .toList() ??
         [];
 
     final List<PracticeSession> practiceSessions =
         (userData['practiceSessions'] as List<dynamic>?)
-            ?.map(
-              (item) => PracticeSession.fromMap(
-                Map<String, dynamic>.from(item as Map),
-              ),
-            )
+            ?.map((item) => PracticeSession.fromMap(item))
             .toList() ??
         [];
 
@@ -423,7 +433,7 @@ class ProgressScreen extends StatelessWidget {
                                     ),
                                   ),
                                   FractionallySizedBox(
-                                    widthFactor: chord.progress / 100,
+                                    widthFactor: (chord.progress / 100).clamp(0.0, 1.0),
                                     child: Container(
                                       height: 5,
                                       decoration: BoxDecoration(

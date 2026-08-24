@@ -385,6 +385,8 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
 
     double progressFraction = (_currentChordIndex + 1) / _chords.length;
     int currentProgressPercent = (progressFraction * 100).round();
+    final now = DateTime.now();
+    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
     try {
       await ApiService.savePracticeSession(
@@ -400,10 +402,15 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       );
 
       await _updateProfileHelper(widget.userId, {
-        "completedChords": [chordName],
+        "completedChords": [
+          {
+            "name": chordName,
+            "date": dateStr,
+            "accuracy": _accuracy,
+          }
+        ],
         "progressPercent": currentProgressPercent,
         "pointsEarned": 20,
-        "totalPoints": _points,
         "accuracy": _accuracy,
       });
     } catch (e) {
@@ -427,6 +434,8 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
 
     int totalEarnedPoints = _points + widget.rewardPoints;
     String allChordsStr = _chords.map((c) => c.name).join(", ");
+    final now = DateTime.now();
+    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
     try {
       await ApiService.savePracticeSession(
@@ -446,7 +455,6 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
         "levelNumber": widget.levelId,
         "accuracy": _accuracy,
         "pointsEarned": totalEarnedPoints,
-        "totalPoints": totalEarnedPoints,
         "completedLevels": [
           {
             "levelNumber": widget.levelId,
@@ -454,7 +462,11 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
             "accuracy": _accuracy,
           },
         ],
-        "completedChords": _chords.map((c) => c.name).toList(),
+        "completedChords": _chords.map((c) => {
+          "name": c.name,
+          "date": dateStr,
+          "accuracy": _accuracy,
+        }).toList(),
         "currentLevel": widget.levelId + 1,
         "progressPercent": 100,
       });

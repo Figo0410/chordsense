@@ -444,9 +444,14 @@ router.patch('/user/:id/progress', async (req, res) => {
 
     // Handle completed chords
     const chordsToAdd = chordsCompleted || (chordPracticed ? chordPracticed.split(',').map(c => c.trim()) : []);
+    const currentDate = new Date().toISOString();
     chordsToAdd.forEach((chord) => {
-      if (chord && !user.completedChords.includes(chord)) {
-        user.completedChords.push(chord);
+      if (chord && !user.completedChords.some(c => c.name === chord)) {
+        user.completedChords.push({
+            name: chord,
+            date: currentDate,
+            accuracy: accuracy
+        });
       }
     });
     user.chordsMastered = user.completedChords.length;
@@ -462,6 +467,7 @@ router.patch('/user/:id/progress', async (req, res) => {
         levelNumber: targetLevelNum,
         progress: 1.0,
         accuracy: accuracy || (user.completedLevels[existingIdx] && user.completedLevels[existingIdx].accuracy) || 100,
+        completedAt: new Date()
       };
 
       if (existingIdx !== -1) {
@@ -476,20 +482,13 @@ router.patch('/user/:id/progress', async (req, res) => {
       }
 
       const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
-      if (nextLevelData) {
-        user.nextLevelPoints = nextLevelData.requiredPoints;
-      }
+      user.nextLevelPoints = nextLevelData ? nextLevelData.requiredPoints : (user.currentLevel * 1000);
     }
 
     // Dynamic level thresholds calculation to fix progress Math
     const activeLevel = user.currentLevel || 1;
     const basePoints = (activeLevel - 1) * 1000;
-    let targetPoints = user.nextLevelPoints || (activeLevel * 1000);
-
-    if (targetPoints <= basePoints) {
-      targetPoints = activeLevel * 1000;
-      user.nextLevelPoints = targetPoints;
-    }
+    const targetPoints = user.nextLevelPoints || (activeLevel * 1000);
 
     const range = targetPoints - basePoints;
     const pointsInLevel = user.totalPoints - basePoints;
@@ -537,9 +536,14 @@ router.post('/save-session', async (req, res) => {
 
     if (isCompleted && chordPracticed) {
       const chordArray = chordPracticed.split(',').map((c) => c.trim());
+      const currentDate = new Date().toISOString();
       chordArray.forEach((chord) => {
-        if (!user.completedChords.includes(chord)) {
-          user.completedChords.push(chord);
+        if (chord && !user.completedChords.some(c => c.name === chord)) {
+          user.completedChords.push({
+              name: chord,
+              date: currentDate,
+              accuracy: accuracy
+          });
         }
       });
       user.chordsMastered = user.completedChords.length;
@@ -552,12 +556,14 @@ router.post('/save-session', async (req, res) => {
             levelNumber: levelId,
             progress: 1.0,
             accuracy: accuracy || user.completedLevels[existingIdx].accuracy || 100,
+            completedAt: new Date()
           };
         } else {
           user.completedLevels.push({
             levelNumber: levelId,
             progress: 1.0,
             accuracy: accuracy || 100,
+            completedAt: new Date()
           });
         }
 

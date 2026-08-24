@@ -403,7 +403,6 @@ class ApiService {
         "incorrectAttempts": incorrectAttempts,
         "accuracy": accuracy,
         "pointsEarned": pointsEarned,
-        "totalPoints": pointsEarned,
         "duration": duration,
         "isPerfect100": accuracy >= 100,
       });
@@ -416,6 +415,13 @@ class ApiService {
           .where((e) => e.isNotEmpty)
           .toList();
 
+      final String currentDateStr = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
+      final List<Map<String, dynamic>> structuredChords = chordsList.map((chordName) => {
+        'name': chordName,
+        'date': currentDateStr,
+        'accuracy': accuracy,
+      }).toList();
+
       final progressResponse = await _safeApiCall(() => http.patch(
         Uri.parse('$baseUrl/auth/user/$userId/progress'),
         headers: {'Content-Type': 'application/json'},
@@ -423,7 +429,6 @@ class ApiService {
           'levelId': levelId,
           'levelNumber': levelId,
           'pointsEarned': pointsEarned,
-          'totalPoints': pointsEarned,
           'accuracy': accuracy,
           'completed': true,
           'completedLevel': {
@@ -431,7 +436,7 @@ class ApiService {
             'accuracy': accuracy,
             'progress': 1.0,
           },
-          'chordsCompleted': chordsList,
+          'completedChords': structuredChords,
         }),
       ));
       if (progressResponse.statusCode == 200) {
