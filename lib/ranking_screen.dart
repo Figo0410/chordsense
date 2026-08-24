@@ -1,12 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-import 'package:http/http.dart' as http;
 import 'learning_path_screen.dart';
-
-// --- CONFIGURATION ---
-// Replace this with your Node.js backend URL (e.g. http://10.0.2.2:5000/api for Android emulator)
-const String kBaseApiUrl = 'http://10.0.2.2:5000/api/auth';
+import 'services/api_service.dart';
 
 class LeaderboardUser {
   final String id;
@@ -33,7 +29,6 @@ class LeaderboardUser {
     this.avatarAsset = "",
   });
 
-  // Factory constructor to map MongoDB JSON object to LeaderboardUser model
   factory LeaderboardUser.fromJson(
     Map<String, dynamic> json,
     int rank,
@@ -48,15 +43,24 @@ class LeaderboardUser {
         (currentUsername.isNotEmpty &&
             name.toLowerCase() == currentUsername.toLowerCase());
 
+    int calculatedSessions = 0;
+    if (json['sessions'] != null) {
+      calculatedSessions = json['sessions'] is List
+          ? (json['sessions'] as List).length
+          : (json['sessions'] as int? ?? 0);
+    } else if (json['practiceSessions'] != null && json['practiceSessions'] is List) {
+      calculatedSessions = (json['practiceSessions'] as List).length;
+    }
+
     return LeaderboardUser(
       id: userId,
       rank: rank,
       name: name,
-      level: (json['level'] ?? 1) as int,
-      xp: (json['xp'] ?? 0) as int,
-      days: (json['days'] ?? 0) as int,
+      level: (json['level'] ?? json['currentLevel'] ?? 1) as int,
+      xp: (json['xp'] ?? json['totalPoints'] ?? 0) as int,
+      days: (json['days'] ?? json['streak'] ?? 0) as int,
       accuracy: (json['accuracy'] ?? 0) as int,
-      sessions: (json['sessions'] ?? 0) as int,
+      sessions: calculatedSessions,
       isCurrentUser: isMe,
       avatarAsset: json['avatarAsset'] ?? "",
     );
@@ -75,9 +79,8 @@ class RankingScreen extends StatefulWidget {
 }
 
 class _RankingScreenState extends State<RankingScreen> {
-  int _selectedTab = 0; // 0: Top Accuracy, 1: Weekly, 2: Most Improved
+  int _selectedTab = 0;
 
-  // Query parameter mapped to MongoDB backend sorting fields
   String get _sortQueryParam {
     switch (_selectedTab) {
       case 0:
@@ -91,55 +94,34 @@ class _RankingScreenState extends State<RankingScreen> {
     }
   }
 
-  // API Call to fetch Leaderboard users from MongoDB via Express endpoint
-  // API Call to fetch Leaderboard users
   Future<List<LeaderboardUser>> _fetchLeaderboard(
     String currentUserId,
     String currentUsername,
     String authToken,
   ) async {
     try {
-      final Uri uri = Uri.parse(
-        '$kBaseApiUrl/leaderboard?sortBy=$_sortQueryParam',
-      );
+      final List<dynamic> body = await ApiService.getLeaderboard(_sortQueryParam);
 
-      final response = await http.get(
-        uri,
-        headers: {
-          'Content-Type': 'application/json',
-          if (authToken.isNotEmpty) 'Authorization': 'Bearer $authToken',
-        },
-      );
+      if (body.isEmpty) return [];
 
-      if (response.statusCode == 200) {
-        final List<dynamic> body = jsonDecode(response.body);
-
-        // If Weekly returns an empty array from API, handle it safely
-        if (body.isEmpty) return [];
-
-        return body.asMap().entries.map((entry) {
-          final int index = entry.key;
-          final Map<String, dynamic> item = entry.value;
-          return LeaderboardUser.fromJson(
-            item,
-            index + 1,
-            currentUserId,
-            currentUsername,
-          );
-        }).toList();
-      } else {
-        // Fallback empty list instead of throwing an uncaught exception
-        return [];
-      }
+      return body.asMap().entries.map((entry) {
+        final int index = entry.key;
+        final Map<String, dynamic> item = entry.value;
+        return LeaderboardUser.fromJson(
+          item,
+          index + 1,
+          currentUserId,
+          currentUsername,
+        );
+      }).toList();
     } catch (e) {
       debugPrint('Error fetching leaderboard: $e');
-      return []; // Return empty list on network or parsing error
+      return [];
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Cast arguments explicitly to Map<String, dynamic>?
     final routeArgs =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
@@ -148,13 +130,11 @@ class _RankingScreenState extends State<RankingScreen> {
     String authToken = '';
 
     if (routeArgs != null) {
-      // Check if user data is inside a nested 'user' key, otherwise use top-level routeArgs
       final Map<String, dynamic> userMap =
           (routeArgs['user'] is Map<String, dynamic>)
           ? routeArgs['user'] as Map<String, dynamic>
           : routeArgs;
 
-      // Check all common key variations for user ID
       currentUserId =
           routeArgs['userId']?.toString() ??
           userMap['_id']?.toString() ??
@@ -162,18 +142,16 @@ class _RankingScreenState extends State<RankingScreen> {
           userMap['id']?.toString() ??
           '';
 
-      // Check all common key variations for username
       currentUsername =
           routeArgs['username']?.toString() ??
           userMap['username']?.toString() ??
           userMap['name']?.toString() ??
           '';
 
-      // Extract token if present
       authToken =
           routeArgs['token']?.toString() ?? userMap['token']?.toString() ?? '';
     }
-    // DEBUG LOG: Run your app and check your terminal to see what Flutter receives!
+
     debugPrint(
       '--> LEADERBOARD DEBUG: userId="$currentUserId", username="$currentUsername"',
     );
@@ -182,13 +160,8 @@ class _RankingScreenState extends State<RankingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Now this will compile without error!
             _buildHeader(routeArgs),
-
-            // --- TAB SELECTOR ---
             _buildTabSelector(),
-
-            // --- REST API DATA FETCHING ---
             Expanded(
               child: FutureBuilder<List<LeaderboardUser>>(
                 future: _fetchLeaderboard(
@@ -224,12 +197,10 @@ class _RankingScreenState extends State<RankingScreen> {
                     );
                   }
 
-                  // Top 3 Podium Users
                   final top1 = users.isNotEmpty ? users[0] : null;
                   final top2 = users.length > 1 ? users[1] : null;
                   final top3 = users.length > 2 ? users[2] : null;
 
-                  // Find current user data by matching ID OR Username, or fallback if not found
                   final currentUser = users.firstWhere(
                     (u) =>
                         (currentUserId.isNotEmpty && u.id == currentUserId) ||
@@ -244,7 +215,6 @@ class _RankingScreenState extends State<RankingScreen> {
                     },
                   );
 
-                  // Calculate XP to next rank
                   int pointsToNext = 0;
                   if (currentUser.rank > 1 &&
                       currentUser.rank <= users.length) {
@@ -261,14 +231,11 @@ class _RankingScreenState extends State<RankingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // --- PODIUM COMPONENT ---
                         if (top1 != null && top2 != null && top3 != null) ...[
                           const SizedBox(height: 16),
                           _buildPodium(top1, top2, top3),
                           const SizedBox(height: 24),
                         ],
-
-                        // --- ALL RANKINGS TITLE ---
                         Row(
                           children: const [
                             Icon(
@@ -288,14 +255,10 @@ class _RankingScreenState extends State<RankingScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-
-                        // --- RANKINGS LIST ---
                         ...users
                             .map((user) => _buildLeaderboardTile(user))
                             .toList(),
                         const SizedBox(height: 24),
-
-                        // --- YOUR PERFORMANCE SUMMARY ---
                         Row(
                           children: const [
                             Icon(
@@ -329,7 +292,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Header design
   Widget _buildHeader(Map<String, dynamic>? routeArgs) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 12.0),
@@ -388,7 +350,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Custom pill tabs
   Widget _buildTabSelector() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -436,7 +397,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Top-3 Podium Layout
   Widget _buildPodium(
     LeaderboardUser top1,
     LeaderboardUser top2,
@@ -804,7 +764,6 @@ class _RankingScreenState extends State<RankingScreen> {
     );
   }
 
-  // Performance Summary Card with dynamic data
   Widget _buildPerformanceSummary(
     LeaderboardUser currentUser,
     int pointsToNext,

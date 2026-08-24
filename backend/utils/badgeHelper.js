@@ -4,7 +4,11 @@ const BADGE_RULES = [
   { 
     id: 'first_steps', 
     points: 50, 
-    condition: (user) => (user.chordsMastered || 0) >= 1 || (user.practiceSessions?.length || 0) >= 1 
+    condition: (user) => 
+      (user.chordsMastered || 0) >= 1 || 
+      (user.completedChords?.length || 0) >= 1 || 
+      (user.practiceSessions?.length || 0) >= 1 || 
+      (user.completedLevels?.length || 0) >= 1 
   },
   { 
     id: 'week_warrior', 
@@ -19,7 +23,9 @@ const BADGE_RULES = [
   { 
     id: 'chord_master', 
     points: 500, 
-    condition: (user) => (user.chordsMastered || 0) >= 50 
+    condition: (user) => 
+      (user.chordsMastered || 0) >= 50 || 
+      (user.completedChords?.length || 0) >= 50 
   },
   { 
     id: 'practice_legend', 
@@ -35,7 +41,7 @@ const BADGE_RULES = [
 
 async function checkAndAwardBadges(user) {
   console.log(`\n🔍 [BADGE CHECK] Checking user: ${user?.username} (ID: ${user?._id})`);
-  console.log(`   Current Stats -> Chords: ${user?.chordsMastered}, Streak: ${user?.streak}, Accuracy: ${user?.accuracy}`);
+  console.log(`   Current Stats -> Chords: ${user?.chordsMastered || user?.completedChords?.length || 0}, Streak: ${user?.streak}, Accuracy: ${user?.accuracy}`);
   
   if (!user.unlockedBadges) {
     user.unlockedBadges = [];

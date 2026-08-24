@@ -251,7 +251,6 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     _audioCapture.stop().catchError((e) => debugPrint("Stop error: $e"));
   }
 
-  // Calculate Root Mean Square (RMS) signal volume level to filter out silence/ambient noise
   double _calculateRMS(List<double> buffer) {
     if (buffer.isEmpty) return 0.0;
     double sumSquares = 0.0;
@@ -273,10 +272,9 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
 
     if (audioBuffer.isEmpty) return;
 
-    // Check RMS volume threshold to ensure user actually strummed a chord
     double rmsVolume = _calculateRMS(audioBuffer);
     if (rmsVolume < 0.03) {
-      return; // Ignore background silence / ambient room noise
+      return;
     }
 
     try {
@@ -296,7 +294,6 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
         float32buffer,
       );
 
-      // Filter pitches strictly within standard guitar frequency range (E2 ~82Hz to E5 ~659Hz)
       if (result.pitched && result.pitch >= 80.0 && result.pitch <= 700.0) {
         _isProcessingAudio = true;
         _stopListeningSync();
@@ -405,23 +402,19 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       await _updateProfileHelper(widget.userId, {
         "completedChords": [chordName],
         "progressPercent": currentProgressPercent,
+        "pointsEarned": 20,
         "totalPoints": _points,
+        "accuracy": _accuracy,
       });
     } catch (e) {
       debugPrint("Incremental Chord Progress Save Notice: $e");
     }
   }
 
-  // Frequency matching with refined pitch window calculation
   bool _evaluateChordMatch(double detected, List<double> targets) {
     for (double target in targets) {
-      // Direct note hit within tolerance window (max 6.0 Hz variance)
       if ((detected - target).abs() <= 6.0) return true;
-
-      // Octave higher match check with tight tolerance
       if ((detected - (target * 2.0)).abs() <= 8.0) return true;
-
-      // Octave lower match check with tight tolerance
       if ((detected - (target / 2.0)).abs() <= 4.0) return true;
     }
     return false;
@@ -452,6 +445,8 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
         "completed": true,
         "levelNumber": widget.levelId,
         "accuracy": _accuracy,
+        "pointsEarned": totalEarnedPoints,
+        "totalPoints": totalEarnedPoints,
         "completedLevels": [
           {
             "levelNumber": widget.levelId,

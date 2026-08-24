@@ -10,7 +10,6 @@ exports.syncToCloud = async (req, res) => {
 
   let cloudConn = null;
   try {
-    // Open a connection to MongoDB Atlas Cloud
     cloudConn = await mongoose.createConnection(process.env.ATLAS_URI).asPromise();
     
     const CloudUser = cloudConn.model('User', User.schema, 'users');
@@ -22,7 +21,6 @@ exports.syncToCloud = async (req, res) => {
     for (let u of unsyncedUsers) {
       const data = u.toObject();
       data.isSynced = true;
-      // Using returnDocument: 'after' to fix deprecation warning
       await CloudUser.findByIdAndUpdate(u._id, data, { upsert: true, returnDocument: 'after' });
       u.isSynced = true;
       await u.save();

@@ -22,23 +22,19 @@ class ApiService {
       return _cachedBaseUrl!;
     }
 
-    // Default fallback
     return 'http://192.168.254.112:5000/api';
   }
 
-  /// Clears the cached base URL to allow re-detection on environment change
   static void resetCachedUrl() {
     _cachedBaseUrl = null;
   }
 
-  /// Automatically resolves and sets the reachable base URL across environments
   static Future<String> initBaseUrl() async {
     if (kIsWeb) {
       _cachedBaseUrl = 'http://localhost:5000/api';
       return _cachedBaseUrl!;
     }
 
-    // Test existing cached URL first if available
     if (_cachedBaseUrl != null) {
       final Uri uri = Uri.parse(_cachedBaseUrl!);
       if (await _isHostReachable(uri.host, uri.port)) {
@@ -46,7 +42,6 @@ class ApiService {
       }
     }
 
-    // Ping candidate list dynamically
     for (String host in _candidateHosts) {
       if (await _isHostReachable(host, 5000)) {
         _cachedBaseUrl = 'http://$host:5000/api';
@@ -54,12 +49,10 @@ class ApiService {
       }
     }
 
-    // Default fallback
     _cachedBaseUrl = 'http://192.168.254.112:5000/api';
     return _cachedBaseUrl!;
   }
 
-  /// Helper utility to ping host socket on server port
   static Future<bool> _isHostReachable(String host, int port) async {
     try {
       final socket = await Socket.connect(host, port, timeout: const Duration(milliseconds: 800));
@@ -70,12 +63,10 @@ class ApiService {
     }
   }
 
-  /// Helper wrapper to execute HTTP requests with automatic IP recovery on failure
   static Future<http.Response> _safeApiCall(Future<http.Response> Function() requestFn) async {
     try {
       return await requestFn();
     } catch (e) {
-      // Clear cached URL and re-detect environment on socket error
       resetCachedUrl();
       await initBaseUrl();
       return await requestFn();
@@ -376,6 +367,19 @@ class ApiService {
     }
   }
 
+  static Future<List<dynamic>> getLeaderboard([String sortBy = 'accuracy']) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/auth/leaderboard?sortBy=$sortBy'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      return [];
+    }
+  }
+
   static Future<Map<String, dynamic>> savePracticeSession({
     required String userId,
     required int levelId,
@@ -399,6 +403,7 @@ class ApiService {
         "incorrectAttempts": incorrectAttempts,
         "accuracy": accuracy,
         "pointsEarned": pointsEarned,
+        "totalPoints": pointsEarned,
         "duration": duration,
         "isPerfect100": accuracy >= 100,
       });
@@ -418,6 +423,7 @@ class ApiService {
           'levelId': levelId,
           'levelNumber': levelId,
           'pointsEarned': pointsEarned,
+          'totalPoints': pointsEarned,
           'accuracy': accuracy,
           'completed': true,
           'completedLevel': {
