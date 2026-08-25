@@ -475,30 +475,17 @@ router.patch('/user/:id/progress', async (req, res) => {
       } else {
         user.completedLevels.push(levelObj);
       }
-
-      const nextLevel = currentLevel || (targetLevelNum + 1);
-      if (user.currentLevel <= targetLevelNum) {
-        user.currentLevel = nextLevel;
-      }
-
+    }
+    
+    // Points-based level up
+    if (user.totalPoints >= user.nextLevelPoints) {
+      user.currentLevel += 1;
       const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
       user.nextLevelPoints = nextLevelData ? nextLevelData.requiredPoints : (user.currentLevel * 1000);
     }
 
     // Dynamic level thresholds calculation to fix progress Math
-    const activeLevel = user.currentLevel || 1;
-    const basePoints = (activeLevel - 1) * 1000;
-    const targetPoints = user.nextLevelPoints || (activeLevel * 1000);
-
-    const range = targetPoints - basePoints;
-    const pointsInLevel = user.totalPoints - basePoints;
-
-    if (range > 0) {
-      const calcPercent = (pointsInLevel / range) * 100;
-      user.progressPercent = Math.min(100.0, Math.max(0.0, calcPercent));
-    } else {
-      user.progressPercent = 0.0;
-    }
+    user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
 
     await user.save();
     res.status(200).json(user);
@@ -568,30 +555,21 @@ router.post('/save-session', async (req, res) => {
         }
 
         if (user.currentLevel <= levelId) {
-          user.currentLevel = levelId + 1;
+          // user.currentLevel = levelId + 1; // Removed premature level-up
         }
       }
     }
 
+    // Points-based level up
+    if (user.totalPoints >= user.nextLevelPoints) {
+      user.currentLevel += 1;
+      const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
+      user.nextLevelPoints = nextLevelData ? nextLevelData.requiredPoints : (user.currentLevel * 1000);
+    }
+
     // Calculate baseline and next level targets safely
     const currentLvl = user.currentLevel || 1;
-    const basePoints = (currentLvl - 1) * 1000;
-    let targetPoints = user.nextLevelPoints || (currentLvl * 1000);
-
-    if (targetPoints <= basePoints) {
-      targetPoints = currentLvl * 1000;
-      user.nextLevelPoints = targetPoints;
-    }
-
-    const range = targetPoints - basePoints;
-    const pointsInLevel = user.totalPoints - basePoints;
-
-    if (range > 0) {
-      const calcPercent = (pointsInLevel / range) * 100;
-      user.progressPercent = Math.min(100.0, Math.max(0.0, calcPercent));
-    } else {
-      user.progressPercent = 0.0;
-    }
+    user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
 
     await user.save();
     res.status(200).json({ message: "Session recorded successfully", user });

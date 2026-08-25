@@ -59,13 +59,37 @@ class _UserDashboardState extends State<UserDashboard> {
     super.initState();
     if (widget.userData != null) {
       _loadUserData(widget.userData!);
+      _fetchLatestUserData(); // Ensure data is fresh
     }
     _loadCurrentLevelData();
+  }
+
+  Future<void> _fetchLatestUserData() async {
+    final userId = _getUserId();
+    if (userId != null) {
+      try {
+        final latestData = await ApiService.getUserProfile(userId);
+        _loadUserData(latestData);
+      } catch (e) {
+        debugPrint("Failed to fetch latest user data: $e");
+      }
+    }
+  }
+
+  // Add a route observer or similar to refresh on resume if needed.
+  // For now, trigger refresh on navigation back
+  @override
+  void didPopNext() {
+    _fetchLatestUserData();
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    
+    // Always refresh latest data when returning to the dashboard
+    _fetchLatestUserData();
+
     final Map<String, dynamic>? routeUserData =
         ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
@@ -92,21 +116,14 @@ class _UserDashboardState extends State<UserDashboard> {
 
       // Dynamic calculation for level progress range
       currentLevelBasePoints = (currentLevel - 1) * 1000;
+      
+      // Calculate percentage dynamically
+      double percent = (nextLevelPoints > 0) ? (totalPoints / nextLevelPoints).clamp(0.0, 1.0) : 0.0;
+      progressPercent = percent * 100;
+      
+      // Update nextLevelPoints if stuck
       if (nextLevelPoints <= currentLevelBasePoints) {
         nextLevelPoints = currentLevel * 1000;
-      }
-
-      int pointRange = nextLevelPoints - currentLevelBasePoints;
-      int pointsEarnedInLevel = (totalPoints - currentLevelBasePoints).clamp(
-        0,
-        pointRange > 0 ? pointRange : 1000,
-      );
-
-      if (pointRange > 0) {
-        progressPercent = (pointsEarnedInLevel / pointRange) * 100;
-        progressPercent = progressPercent.clamp(0.0, 100.0);
-      } else {
-        progressPercent = 0.0;
       }
     });
   }

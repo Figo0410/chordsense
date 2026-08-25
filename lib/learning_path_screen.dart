@@ -91,19 +91,19 @@ class _LearningPathScreenState extends State<LearningPathScreen> {
       },
       {
         "levelNumber": 3,
-        "title": "Minor Chords",
-        "difficulty": "Beginner",
-        "chords": ["A Minor", "E Minor", "D Minor"],
-        "requiredPoints": 250,
+        "title": "Intermediate Transitions",
+        "difficulty": "Intermediate",
+        "chords": ["E Major", "A Major"],
+        "requiredPoints": 1000,
         "rewardPoints": 200,
       },
       {
         "levelNumber": 4,
-        "title": "Chord Transitions",
-        "difficulty": "Intermediate",
-        "chords": ["C-G-D Transition", "Am-Em Switch"],
-        "requiredPoints": 450,
-        "rewardPoints": 250,
+        "title": "Minor Chords",
+        "difficulty": "Beginner",
+        "chords": ["A Minor", "E Minor", "D Minor"],
+        "requiredPoints": 1200,
+        "rewardPoints": 200,
       },
     ];
   }
