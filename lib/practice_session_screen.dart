@@ -385,14 +385,18 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
 
     double progressFraction = (_currentChordIndex + 1) / _chords.length;
     int currentProgressPercent = (progressFraction * 100).round();
-    final now = DateTime.now();
-    final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    
+    // Capture all chords practiced up to this point in the session for the backend payload
+    final allChordsPracticedSoFar = _chords
+        .sublist(0, _currentChordIndex + 1)
+        .map((c) => c.name)
+        .join(', ');
 
     try {
       await ApiService.savePracticeSession(
         userId: widget.userId,
         levelId: widget.levelId,
-        chordPracticed: chordName,
+        chordPracticed: allChordsPracticedSoFar, // Sending all chords
         totalAttempts: _totalAttempts,
         correctAttempts: _correctAttempts,
         incorrectAttempts: _incorrectAttempts,
@@ -401,18 +405,10 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
         duration: durationInSeconds,
       );
 
-      await _updateProfileHelper(widget.userId, {
-        "completedChords": [
-          {
-            "name": chordName,
-            "date": dateStr,
-            "accuracy": _accuracy,
-          }
-        ],
-        "progressPercent": currentProgressPercent,
-        "pointsEarned": 20,
-        "accuracy": _accuracy,
-      });
+      // We no longer need to call ApiService.updateUserProfile here for points
+      // because savePracticeSession handles it atomically.
+      // We only call it if we need to update other profile fields not handled by savePracticeSession.
+      
     } catch (e) {
       debugPrint("Incremental Chord Progress Save Notice: $e");
     }

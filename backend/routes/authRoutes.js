@@ -436,9 +436,9 @@ router.patch('/user/:id/progress', async (req, res) => {
 
     const targetLevelNum = levelNumber || levelId || (completedLevel && completedLevel.levelNumber);
 
-    if (pointsEarned) {
-      user.totalPoints = (user.totalPoints || 0) + pointsEarned;
-    }
+    // Points earned are handled in save-session to prevent duplication
+    // Removed: if (pointsEarned) { user.totalPoints = (user.totalPoints || 0) + pointsEarned; }
+
     if (accuracy !== undefined) user.accuracy = accuracy;
     if (chordPracticed) user.currentChord = chordPracticed;
 
@@ -513,11 +513,14 @@ router.post('/save-session', async (req, res) => {
       completionStatus: isCompleted ? "Completed" : "Incomplete"
     };
 
-    const user = await User.findById(userId);
+    // Use atomic operation for points increment
+    const user = await User.findByIdAndUpdate(userId, {
+        $push: { practiceSessions: sessionData },
+        $inc: { totalPoints: (pointsEarned || 0) }
+    }, { new: true });
+    
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    user.practiceSessions.push(sessionData);
-    user.totalPoints = (user.totalPoints || 0) + (pointsEarned || 0);
     user.accuracy = accuracy;
     user.currentChord = chordPracticed;
 
@@ -525,12 +528,23 @@ router.post('/save-session', async (req, res) => {
       const chordArray = chordPracticed.split(',').map((c) => c.trim());
       const currentDate = new Date().toISOString();
       chordArray.forEach((chord) => {
-        if (chord && !user.completedChords.some(c => c.name === chord)) {
-          user.completedChords.push({
-              name: chord,
-              date: currentDate,
-              accuracy: accuracy
-          });
+        if (chord) {
+            // Update completed chords
+            if (!user.completedChords.some(c => c.name === chord)) {
+                user.completedChords.push({
+                    name: chord,
+                    date: currentDate,
+                    accuracy: accuracy
+                });
+            }
+            // Update learning chords stats
+            const lcIdx = user.learningChords.findIndex(c => c.name === chord);
+            if (lcIdx !== -1) {
+                user.learningChords[lcIdx].attempts += 1;
+                user.learningChords[lcIdx].progress = Math.min(100, user.learningChords[lcIdx].progress + 10);
+            } else {
+                user.learningChords.push({ name: chord, attempts: 1, progress: 10 });
+            }
         }
       });
       user.chordsMastered = user.completedChords.length;
@@ -553,10 +567,6 @@ router.post('/save-session', async (req, res) => {
             completedAt: new Date()
           });
         }
-
-        if (user.currentLevel <= levelId) {
-          // user.currentLevel = levelId + 1; // Removed premature level-up
-        }
       }
     }
 
@@ -568,7 +578,6 @@ router.post('/save-session', async (req, res) => {
     }
 
     // Calculate baseline and next level targets safely
-    const currentLvl = user.currentLevel || 1;
     user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
 
     await user.save();
@@ -577,5 +586,6 @@ router.post('/save-session', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 module.exports = router;

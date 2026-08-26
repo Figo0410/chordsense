@@ -31,6 +31,9 @@
 
   <title>chordsense</title>
   <link rel="manifest" href="manifest.json">
+  <style>
+    body { font-family: sans-serif; }
+  </style>
 </head>
 <body>
   <!--
@@ -41,6 +44,19 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+   <script>
+       window.addEventListener('flutter-first-frame', function () {
+         // App loaded
+       });
+     </script>
+     <script src="flutter_bootstrap.js" async></script>
+     <script>
+       {{flutter_bootstrap_js}}
+       _flutter.loader.load({
+        config: {
+          renderer: "html",
+        },
+      });
+    </script>
 </body>
 </html>
