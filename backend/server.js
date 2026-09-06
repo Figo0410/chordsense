@@ -5,6 +5,7 @@ dns.setServers(['8.8.8.8', '1.1.1.1']); // 1 - 3 is for when it has a wifi
 // server.js
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
 const connectDB = require('./config/db.js');
@@ -30,9 +31,15 @@ app.use('/api/learning-path', require('./routes/learningPathRoutes'));
 // Connects database sync endpoints
 app.use('/api/sync', require('./routes/syncRoutes'));
 
-// 3. Test Route
-app.get('/', (req, res) => {
-  res.send('API is running...');
+// Serve Flutter Web Static Files
+app.use(express.static(path.join(__dirname, '../build/web')));
+
+// Handle all other routes by serving index.html for SPA support
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) {
+    return next();
+  }
+  res.sendFile(path.join(__dirname, '../build/web', 'index.html'));
 });
 
 // 4. Start Server
