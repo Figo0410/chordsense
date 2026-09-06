@@ -416,90 +416,16 @@ router.patch('/user/:id/tuner-status', async (req, res) => {
   }
 });
 
-// 10. PATCH USER PROGRESS & LEARNING PATH SYNC ROUTE
-router.patch('/user/:id/progress', async (req, res) => {
-  try {
-    const { 
-      levelId, 
-      levelNumber, 
-      pointsEarned, 
-      accuracy, 
-      completed, 
-      completedLevel, 
-      chordsCompleted, 
-      chordPracticed,
-      currentLevel 
-    } = req.body;
-
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const targetLevelNum = levelNumber || levelId || (completedLevel && completedLevel.levelNumber);
-
-    // Points earned are handled in save-session to prevent duplication
-    // Removed: if (pointsEarned) { user.totalPoints = (user.totalPoints || 0) + pointsEarned; }
-
-    if (accuracy !== undefined) user.accuracy = accuracy;
-    if (chordPracticed) user.currentChord = chordPracticed;
-
-    // Handle completed chords
-    const chordsToAdd = chordsCompleted || (chordPracticed ? chordPracticed.split(',').map(c => c.trim()) : []);
-    const currentDate = new Date().toISOString();
-    chordsToAdd.forEach((chord) => {
-      if (chord && !user.completedChords.some(c => c.name === chord)) {
-        user.completedChords.push({
-            name: chord,
-            date: currentDate,
-            accuracy: accuracy
-        });
-      }
-    });
-    user.chordsMastered = user.completedChords.length;
-
-    // Force completion flag if level completion object or targetLevelNum is present
-    const isCompleted = completed === true || !!completedLevel || (targetLevelNum && accuracy !== undefined);
-
-    if (isCompleted && targetLevelNum) {
-      if (!user.completedLevels) user.completedLevels = [];
-      const existingIdx = user.completedLevels.findIndex((cl) => cl.levelNumber === targetLevelNum);
-      
-      const levelObj = {
-        levelNumber: targetLevelNum,
-        progress: 1.0,
-        accuracy: accuracy || (user.completedLevels[existingIdx] && user.completedLevels[existingIdx].accuracy) || 100,
-        completedAt: new Date()
-      };
-
-      if (existingIdx !== -1) {
-        user.completedLevels[existingIdx] = levelObj;
-      } else {
-        user.completedLevels.push(levelObj);
-      }
-    }
-    
-    // Points-based level up
-    if (user.totalPoints >= user.nextLevelPoints) {
-      user.currentLevel += 1;
-      const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
-      user.nextLevelPoints = nextLevelData ? nextLevelData.requiredPoints : (user.currentLevel * 1000);
-    }
-
-    // Dynamic level thresholds calculation to fix progress Math
-    user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
-
-    await user.save();
-    res.status(200).json(user);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 // POST /api/practice/save-session
 router.post('/save-session', async (req, res) => {
   try {
-    const { userId, levelId, chordPracticed, totalAttempts, correctAttempts, incorrectAttempts, accuracy, pointsEarned, duration } = req.body;
+    const { userId, levelId, chordPracticed, totalAttempts, correctAttempts, incorrectAttempts, accuracy, duration } = req.body;
 
     const isCompleted = correctAttempts > 0;
+    
+    // NEW: 20 points per correct chord completion
+    const pointsEarned = correctAttempts * 20;
+
     const sessionData = {
       levelId,
       chordPracticed,
@@ -529,7 +455,7 @@ router.post('/save-session', async (req, res) => {
       const currentDate = new Date().toISOString();
       chordArray.forEach((chord) => {
         if (chord) {
-            // Update completed chords
+            // Update completed chords (Only if not already completed to avoid duplicate chord completion logic)
             if (!user.completedChords.some(c => c.name === chord)) {
                 user.completedChords.push({
                     name: chord,
@@ -584,6 +510,86 @@ router.post('/save-session', async (req, res) => {
     res.status(200).json({ message: "Session recorded successfully", user });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// 10. PATCH USER PROGRESS & LEARNING PATH SYNC ROUTE
+router.patch('/user/:id/progress', async (req, res) => {
+  try {
+    const { 
+      levelId, 
+      levelNumber, 
+      accuracy, 
+      completed, 
+      completedLevel, 
+      chordsCompleted, 
+      chordPracticed 
+    } = req.body;
+
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    const targetLevelNum = levelNumber || levelId || (completedLevel && completedLevel.levelNumber);
+
+    if (accuracy !== undefined) user.accuracy = accuracy;
+    if (chordPracticed) user.currentChord = chordPracticed;
+
+    // Handle completed chords
+    const chordsToAdd = chordsCompleted || (chordPracticed ? chordPracticed.split(',').map(c => c.trim()) : []);
+    const currentDate = new Date().toISOString();
+    chordsToAdd.forEach((chord) => {
+      if (chord && !user.completedChords.some(c => c.name === chord)) {
+        user.completedChords.push({
+            name: chord,
+            date: currentDate,
+            accuracy: accuracy
+        });
+      }
+    });
+    user.chordsMastered = user.completedChords.length;
+
+    // Force completion flag if level completion object or targetLevelNum is present
+    const isCompleted = completed === true || !!completedLevel || (targetLevelNum && accuracy !== undefined);
+
+    if (isCompleted && targetLevelNum) {
+      if (!user.completedLevels) user.completedLevels = [];
+      const existingIdx = user.completedLevels.findIndex((cl) => cl.levelNumber === targetLevelNum);
+      
+      // NEW: Award level completion points only if NOT already completed
+      if (existingIdx === -1) {
+          const lp = await LearningPath.findOne({ levelNumber: targetLevelNum });
+          const reward = lp ? lp.rewardPoints : 0;
+          user.totalPoints += reward;
+      }
+
+      const levelObj = {
+        levelNumber: targetLevelNum,
+        progress: 1.0,
+        accuracy: accuracy || (user.completedLevels[existingIdx] && user.completedLevels[existingIdx].accuracy) || 100,
+        completedAt: new Date()
+      };
+
+      if (existingIdx !== -1) {
+        user.completedLevels[existingIdx] = levelObj;
+      } else {
+        user.completedLevels.push(levelObj);
+      }
+    }
+    
+    // Points-based level up
+    if (user.totalPoints >= user.nextLevelPoints) {
+      user.currentLevel += 1;
+      const nextLevelData = await LearningPath.findOne({ levelNumber: user.currentLevel });
+      user.nextLevelPoints = nextLevelData ? nextLevelData.requiredPoints : (user.currentLevel * 1000);
+    }
+
+    // Dynamic level thresholds calculation to fix progress Math
+    user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
+
+    await user.save();
+    res.status(200).json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
