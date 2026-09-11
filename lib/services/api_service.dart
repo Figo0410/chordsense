@@ -9,6 +9,7 @@ class ApiService {
   /// Candidate list of host IPs to scan dynamically (Add any common static IP here)
   static const List<String> _candidateHosts = [
     '192.168.254.112', // Physical phone Wi-Fi
+    '192.168.254.121', // Physical phone Wi-Fi
     '192.168.43.208',  // Physical phone Hotspot
     '10.0.2.2',        // Android Emulator Loopback
     'localhost',       // iOS Simulator / Web
@@ -379,7 +380,6 @@ class ApiService {
       return [];
     }
   }
-
   static Future<Map<String, dynamic>> savePracticeSession({
     required String userId,
     required int levelId,
@@ -390,11 +390,10 @@ class ApiService {
     required int accuracy,
     required int pointsEarned,
     required int duration,
+    String? sessionId,
   }) async {
-    Map<String, dynamic> result = {};
-
     try {
-      result = await post('/auth/save-session', {
+      final response = await post('/auth/save-session', {
         "userId": userId,
         "levelId": levelId,
         "chordPracticed": chordPracticed,
@@ -405,45 +404,12 @@ class ApiService {
         "pointsEarned": pointsEarned,
         "duration": duration,
         "isPerfect100": accuracy >= 100,
+        "sessionId": sessionId,
       });
-    } catch (_) {}
-
-    try {
-      final List<String> chordsList = chordPracticed
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
-      final String currentDateStr = "${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}";
-      final List<Map<String, dynamic>> structuredChords = chordsList.map((chordName) => {
-        'name': chordName,
-        'date': currentDateStr,
-        'accuracy': accuracy,
-      }).toList();
-
-      final progressResponse = await _safeApiCall(() => http.patch(
-        Uri.parse('$baseUrl/auth/user/$userId/progress'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'levelId': levelId,
-          'levelNumber': levelId,
-          'pointsEarned': pointsEarned,
-          'accuracy': accuracy,
-          'completed': true,
-          'completedLevel': {
-            'levelNumber': levelId,
-            'accuracy': accuracy,
-            'progress': 1.0,
-          },
-          'completedChords': structuredChords,
-        }),
-      ));
-      if (progressResponse.statusCode == 200) {
-        result = jsonDecode(progressResponse.body);
-      }
-    } catch (_) {}
-
-    return result;
+      return response;
+    } catch (e) {
+      debugPrint("ApiService Error: $e");
+      rethrow;
+    }
   }
 }

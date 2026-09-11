@@ -880,10 +880,11 @@ class _UserDashboardState extends State<UserDashboard> {
                   LucideIcons.music,
                   const Color(0xFFEAB308),
                   onTap: () {
+                    final userId = _getUserId();
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (context) => const SongLibraryScreen(),
+                        builder: (context) => SongLibraryScreen(userId: userId),
                       ),
                     );
                   },

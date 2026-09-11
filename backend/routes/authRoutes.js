@@ -419,14 +419,30 @@ router.patch('/user/:id/tuner-status', async (req, res) => {
 // POST /api/practice/save-session
 router.post('/save-session', async (req, res) => {
   try {
-    const { userId, levelId, chordPracticed, totalAttempts, correctAttempts, incorrectAttempts, accuracy, duration } = req.body;
+    const { userId, levelId, chordPracticed, totalAttempts, correctAttempts, incorrectAttempts, accuracy, duration, sessionId } = req.body;
+    
+    console.log("Received save-session request for userId:", userId);
+    console.log("Request Body:", req.body);
+
+    // Check if user exists first
+    let user = await User.findById(userId);
+    if (!user) {
+        console.error("User not found for ID:", userId);
+        return res.status(404).json({ message: "User not found" });
+    }
+
+    // Duplicate prevention
+    if (sessionId && user.practiceSessions.some(s => s.sessionId === sessionId)) {
+      return res.status(400).json({ message: "Session already recorded." });
+    }
 
     const isCompleted = correctAttempts > 0;
     
-    // NEW: 20 points per correct chord completion
-    const pointsEarned = correctAttempts * 20;
+    // Song performance points: 0-50 based on accuracy
+    const pointsEarned = Math.round((accuracy / 100) * 50);
 
     const sessionData = {
+      sessionId,
       levelId,
       chordPracticed,
       date: new Date(),
@@ -439,14 +455,10 @@ router.post('/save-session', async (req, res) => {
       completionStatus: isCompleted ? "Completed" : "Incomplete"
     };
 
-    // Use atomic operation for points increment
-    const user = await User.findByIdAndUpdate(userId, {
-        $push: { practiceSessions: sessionData },
-        $inc: { totalPoints: (pointsEarned || 0) }
-    }, { new: true });
+    // Update user
+    user.practiceSessions.push(sessionData);
+    user.totalPoints += pointsEarned;
     
-    if (!user) return res.status(404).json({ message: "User not found" });
-
     user.accuracy = accuracy;
     user.currentChord = chordPracticed;
 
@@ -455,7 +467,7 @@ router.post('/save-session', async (req, res) => {
       const currentDate = new Date().toISOString();
       chordArray.forEach((chord) => {
         if (chord) {
-            // Update completed chords (Only if not already completed to avoid duplicate chord completion logic)
+            // Update completed chords
             if (!user.completedChords.some(c => c.name === chord)) {
                 user.completedChords.push({
                     name: chord,
@@ -507,7 +519,7 @@ router.post('/save-session', async (req, res) => {
     user.progressPercent = Math.min(100, Math.max(0, Math.round((user.totalPoints / user.nextLevelPoints) * 100)));
 
     await user.save();
-    res.status(200).json({ message: "Session recorded successfully", user });
+    res.status(200).json({ message: "Session recorded successfully", user: user, pointsEarned });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

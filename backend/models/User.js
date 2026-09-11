@@ -96,6 +96,7 @@ const userSchema = new mongoose.Schema({
     progress: Number
   }],
   practiceSessions: [{
+    sessionId: String,
     day: String,
     date: String,
     duration: String,

@@ -360,30 +360,45 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
     }
   }
 
+  String? _sessionId;
+  
+  // ...
+
   Future<void> _finishSession() async {
     _sessionTimer?.cancel();
     await _stopMicListening();
 
+    _sessionId = DateTime.now().toIso8601String(); // Unique ID
+
     int total = _correctAttempts + _incorrectAttempts;
     int accuracy = total > 0 ? ((_correctAttempts / total) * 100).round() : 100;
-    int points = _correctAttempts * 20;
+    int points = ((accuracy / 100) * 50).round();
 
-    await ApiService.savePracticeSession(
-      userId: "user_123",
-      levelId: widget.lessonData?['level'] ?? 1,
-      chordPracticed: _targetChords.join(', '),
-      totalAttempts: total > 0 ? total : _targetChords.length,
-      correctAttempts: _correctAttempts > 0
-          ? _correctAttempts
-          : _targetChords.length,
-      incorrectAttempts: _incorrectAttempts,
-      accuracy: accuracy,
-      pointsEarned: points > 0 ? points : 100,
-      duration: _elapsedSeconds,
-    );
+    try {
+      final response = await ApiService.savePracticeSession(
+        userId: widget.lessonData?['userId'] ?? "user_123",
+        levelId: widget.lessonData?['level'] ?? 1,
+        chordPracticed: _targetChords.join(', '),
+        totalAttempts: total > 0 ? total : _targetChords.length,
+        correctAttempts: _correctAttempts > 0
+            ? _correctAttempts
+            : _targetChords.length,
+        incorrectAttempts: _incorrectAttempts,
+        accuracy: accuracy,
+        pointsEarned: points,
+        duration: _elapsedSeconds,
+        sessionId: _sessionId,
+      );
+      
+      debugPrint("API Response: $response");
+      // If we had a mechanism to update the user dashboard data from here, 
+      // we would use the 'user' object in the response.
+    } catch (e) {
+      debugPrint("Error saving session: $e");
+    }
 
     if (mounted) {
-      _showCompletionDialog();
+      _showResultScreen(accuracy, points);
     }
   }
 
@@ -408,33 +423,49 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
     }
   }
 
-  void _showCompletionDialog() {
+  void _showResultScreen(int accuracy, int points) {
+    String feedback = "";
+    if (accuracy >= 90) feedback = "Excellent Performance!";
+    else if (accuracy >= 75) feedback = "Great Job!";
+    else if (accuracy >= 60) feedback = "Good Effort!";
+    else if (accuracy >= 40) feedback = "Keep Practicing!";
+    else feedback = "Don't Give Up! Keep Practicing!";
+
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
+      builder: (context) => Dialog(
         backgroundColor: const Color(0xFF0D1527),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          "Session Complete!",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          "Great job! You practiced ${_targetChords.length} chords in ${_elapsedSeconds}s.",
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text(
-              "Continue",
-              style: TextStyle(color: Color(0xFF00E5FF)),
-            ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("SONG COMPLETE!", style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              Text("$accuracy%", style: const TextStyle(color: Color(0xFF00E5FF), fontSize: 48, fontWeight: FontWeight.bold)),
+              const Text("Accuracy", style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const SizedBox(height: 16),
+              Text(feedback, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 16),
+              Text("+$points Points", style: const TextStyle(color: Color(0xFF10B981), fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    // Popping twice to return to the Dashboard
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00E5FF), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                  child: const Text("Continue", style: TextStyle(color: Color(0xFF0D1527), fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

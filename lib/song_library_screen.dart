@@ -82,8 +82,9 @@ class Song {
 
 class SongLibraryScreen extends StatefulWidget {
   final VoidCallback? onBack;
+  final String? userId;
 
-  const SongLibraryScreen({super.key, this.onBack});
+  const SongLibraryScreen({super.key, this.onBack, this.userId});
 
   @override
   State<SongLibraryScreen> createState() => _SongLibraryScreenState();
@@ -666,6 +667,7 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
                   MaterialPageRoute(
                     builder: (context) => GuidedPlayScreen(
                       lessonData: {
+                        'userId': widget.userId,
                         'title': song.title,
                         'artist': song.artist,
                         'chords': song.progression.isNotEmpty
