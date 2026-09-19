@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 const Song = require('../models/Song');
 const LearningPath = require('../models/LearningPath');
+const SongRequest = require('../models/SongRequest');
 
 exports.syncToCloud = async (req, res) => {
   if (!process.env.ATLAS_URI) {
@@ -15,6 +16,7 @@ exports.syncToCloud = async (req, res) => {
     const CloudUser = cloudConn.model('User', User.schema, 'users');
     const CloudSong = cloudConn.model('Song', Song.schema);
     const CloudLearningPath = cloudConn.model('LearningPath', LearningPath.schema, 'learning_paths');
+    const CloudSongRequest = cloudConn.model('SongRequest', SongRequest.schema, 'songrequests');
 
     // 1. Sync Users
     const unsyncedUsers = await User.find({ isSynced: false });
@@ -46,6 +48,16 @@ exports.syncToCloud = async (req, res) => {
       await lp.save();
     }
 
+    // 4. Sync Song Requests
+    const unsyncedRequests = await SongRequest.find({ isSynced: false });
+    for (let sr of unsyncedRequests) {
+      const data = sr.toObject();
+      data.isSynced = true;
+      await CloudSongRequest.findByIdAndUpdate(sr._id, data, { upsert: true, returnDocument: 'after' });
+      sr.isSynced = true;
+      await sr.save();
+    }
+
     await cloudConn.close();
     res.status(200).json({ 
       success: true, 
@@ -53,7 +65,8 @@ exports.syncToCloud = async (req, res) => {
       syncedCounts: {
         users: unsyncedUsers.length,
         songs: unsyncedSongs.length,
-        learningPaths: unsyncedPaths.length
+        learningPaths: unsyncedPaths.length,
+        songRequests: unsyncedRequests.length
       }
     });
 

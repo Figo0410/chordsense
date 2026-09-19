@@ -8,7 +8,7 @@ class ApiService {
 
   /// Candidate list of host IPs to scan dynamically (Add any common static IP here)
   static const List<String> _candidateHosts = [
-    '192.168.254.112', // Physical phone Wi-Fi
+    '192.168.254.114', // Physical phone Wi-Fi
     '192.168.254.121', // Physical phone Wi-Fi
     '192.168.43.208',  // Physical phone Hotspot
     '10.0.2.2',        // Android Emulator Loopback
@@ -368,6 +368,164 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getAdminStats(String userId) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/admin/stats'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch admin stats.');
+    }
+  }
+
+  static Future<List<dynamic>> getAllUsers(String userId) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/admin/users'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch users.');
+    }
+  }
+
+  static Future<void> deleteUser(String adminId, String userId) async {
+    final response = await _safeApiCall(() => http.delete(
+      Uri.parse('$baseUrl/admin/users/$userId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': adminId},
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete user.');
+    }
+  }
+
+  static Future<void> createSong(String userId, Map<String, dynamic> data) async {
+    final response = await _safeApiCall(() => http.post(
+      Uri.parse('$baseUrl/songs'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+      body: jsonEncode(data),
+    ));
+
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create song.');
+    }
+  }
+
+  static Future<void> deleteSong(String userId, String songId) async {
+    final response = await _safeApiCall(() => http.delete(
+      Uri.parse('$baseUrl/songs/$songId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete song.');
+    }
+  }
+
+  static Future<void> updateSong(String userId, String songId, Map<String, dynamic> data) async {
+    final response = await _safeApiCall(() => http.patch(
+      Uri.parse('$baseUrl/songs/$songId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+      body: jsonEncode(data),
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update song.');
+    }
+  }
+
+  static Future<void> updateLevel(String userId, String levelId, Map<String, dynamic> data) async {
+    final response = await _safeApiCall(() => http.patch(
+      Uri.parse('$baseUrl/learning-path/$levelId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+      body: jsonEncode(data),
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update level.');
+    }
+  }
+
+  static Future<void> deleteLevel(String userId, String levelId) async {
+    final response = await _safeApiCall(() => http.delete(
+      Uri.parse('$baseUrl/learning-path/$levelId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete level.');
+    }
+  }
+
+  // --- SONG REQUESTS ---
+  static Future<void> submitSongRequest(String userId, String songTitle, String artist) async {
+    final response = await _safeApiCall(() => http.post(
+      Uri.parse('$baseUrl/song-requests'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'userId': userId, 'songTitle': songTitle, 'artist': artist}),
+    ));
+
+    if (response.statusCode != 201) {
+      throw Exception('Failed to submit song request.');
+    }
+  }
+
+  static Future<List<dynamic>> getUserRequests(String userId) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/song-requests/user/$userId'),
+      headers: {'Content-Type': 'application/json'},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch user requests.');
+    }
+  }
+
+  static Future<List<dynamic>> getAllRequests(String userId) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/song-requests/admin'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch admin requests.');
+    }
+  }
+
+  static Future<void> updateRequestStatus(String adminId, String requestId, String status) async {
+    final response = await _safeApiCall(() => http.patch(
+      Uri.parse('$baseUrl/song-requests/admin/$requestId'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': adminId},
+      body: jsonEncode({'status': status}),
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update request.');
+    }
+  }
+
+  static Future<void> createLevel(String userId, Map<String, dynamic> data) async {
+    final response = await _safeApiCall(() => http.post(
+      Uri.parse('$baseUrl/learning-path'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+      body: jsonEncode(data),
+    ));
+
+    if (response.statusCode != 201) {
+      throw Exception('Failed to create level.');
+    }
+  }
+
   static Future<List<dynamic>> getLeaderboard([String sortBy = 'accuracy']) async {
     final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/auth/leaderboard?sortBy=$sortBy'),
@@ -380,6 +538,7 @@ class ApiService {
       return [];
     }
   }
+
   static Future<Map<String, dynamic>> savePracticeSession({
     required String userId,
     required int levelId,

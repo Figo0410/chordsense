@@ -1,159 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'services/api_service.dart';
+import 'request_song_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
-  const AdminDashboardScreen({super.key});
+  final Map<String, dynamic>? userData;
+  const AdminDashboardScreen({super.key, this.userData});
 
   @override
   State<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  int _selectedIndex =
-      2; // Default to Content Management to easily view changes
+  int _selectedIndex = 0; // Default to Dashboard
   int _contentSubTab = 0; // 0: Levels, 1: Songs, 2: Requests
   String _searchQuery = "";
   bool _maintenanceMode = false;
 
-  // Mock Data
-  final List<Map<String, dynamic>> _users = [
-    {
-      "name": "Joshua Williams",
-      "email": "joshua@example.com",
-      "level": "7",
-      "points": "3,450",
-      "rawPoints": 3450,
-      "sessions": 47,
-      "avatar": "J",
-    },
-    {
-      "name": "Sarah Johnson",
-      "email": "sarah@example.com",
-      "level": "5",
-      "points": "2,100",
-      "rawPoints": 2100,
-      "sessions": 32,
-      "avatar": "S",
-    },
-    {
-      "name": "Mike Chen",
-      "email": "mike@example.com",
-      "level": "9",
-      "points": "5,200",
-      "rawPoints": 5200,
-      "sessions": 65,
-      "avatar": "M",
-    },
-  ];
+  // Real Data State
+  List<dynamic> _users = [];
+  List<dynamic> _levels = [];
+  List<dynamic> _songs = [];
+  List<dynamic> _requests = []; // Fix: Defined _requests
+  Map<String, dynamic> _stats = {
+    "totalUsers": 0,
+    "activeToday": 0,
+    "avgAccuracy": 0,
+    "totalSessions": 0,
+  };
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _levels = [
-    {
-      "num": "1",
-      "title": "Beginner I",
-      "chords": ["C", "G", "D"],
-      "accuracy": "70%",
-      "points": "100 pts",
-    },
-    {
-      "num": "2",
-      "title": "Beginner II",
-      "chords": ["Am", "Em", "Dm"],
-      "accuracy": "75%",
-      "points": "150 pts",
-    },
-    {
-      "num": "3",
-      "title": "Intermediate I",
-      "chords": ["F", "A", "E"],
-      "accuracy": "80%",
-      "points": "200 pts",
-    },
-    {
-      "num": "4",
-      "title": "Intermediate II",
-      "chords": ["Bm", "C7", "G7"],
-      "accuracy": "85%",
-      "points": "250 pts",
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
 
-  final List<Map<String, dynamic>> _songs = [
-    {
-      "title": "Alapaap",
-      "artist": "Eraserheads",
-      "level": "Beginner",
-      "chords": "4 chords",
-      "rawChords": "4",
-      "status": "Active",
-    },
-    {
-      "title": "Torete",
-      "artist": "Moonstar88",
-      "level": "Beginner",
-      "chords": "4 chords",
-      "rawChords": "4",
-      "status": "Active",
-    },
-    {
-      "title": "Huling El Bimbo",
-      "artist": "Eraserheads",
-      "level": "Intermediate",
-      "chords": "5 chords",
-      "rawChords": "5",
-      "status": "Active",
-    },
-    {
-      "title": "Tadhana",
-      "artist": "Up Dharma Down",
-      "level": "Intermediate",
-      "chords": "5 chords",
-      "rawChords": "5",
-      "status": "Active",
-    },
-    {
-      "title": "Kathang Isip",
-      "artist": "Ben&Ben",
-      "level": "Intermediate",
-      "chords": "6 chords",
-      "rawChords": "6",
-      "status": "Active",
-    },
-  ];
+  Future<void> _fetchData() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = widget.userData?['_id'];
+      if (userId == null) throw Exception("User not authenticated");
 
-  final List<Map<String, dynamic>> _requests = [
-    {
-      "title": "Ligaya",
-      "artist": "Eraserheads",
-      "user": "Joshua Williams",
-      "date": "Mar 10, 2026",
-      "tag": "Acoustic",
-      "status": "Completed",
-    },
-    {
-      "title": "Mundo",
-      "artist": "IV of Spades",
-      "user": "Sarah Johnson",
-      "date": "Mar 18, 2026",
-      "tag": "Rhythm",
-      "status": "In Progress",
-    },
-    {
-      "title": "Pagtingin",
-      "artist": "Ben&Ben",
-      "user": "Mike Chen",
-      "date": "Mar 20, 2026",
-      "tag": "Fingerstyle",
-      "status": "Pending",
-    },
-    {
-      "title": "Araw-Araw",
-      "artist": "Ben&Ben",
-      "user": "Emma Davis",
-      "date": "Mar 22, 2026",
-      "tag": "Acoustic",
-      "status": "Pending",
-    },
-  ];
+      final results = await Future.wait([
+        ApiService.getAdminStats(userId),
+        ApiService.getAllUsers(userId),
+        ApiService.getLearningPaths(),
+        ApiService.getSongs(),
+        ApiService.getAllRequests(userId), // Fetch real requests
+      ]);
+
+      setState(() {
+        _stats = results[0] as Map<String, dynamic>; // Fix: Casting
+        _users = (results[1] as List).map((u) => {
+          "name": u['username'],
+          "email": u['email'],
+          "level": u['currentLevel'].toString(),
+          "points": u['totalPoints'].toString(),
+          "sessions": (u['practiceSessions'] as List).length,
+          "avatar": u['username'][0].toUpperCase(),
+          "_id": u['_id'],
+        }).toList();
+        _levels = (results[2] as List).map((l) => {
+          "num": l['levelNumber'].toString(),
+          "title": l['title'],
+          "chords": l['chords'],
+          "accuracy": "${l['passingAccuracy']}%",
+          "points": "${l['rewardPoints']} pts",
+          "_id": l['_id'],
+        }).toList();
+        _songs = (results[3] as List).map((s) => {
+          "title": s['title'],
+          "artist": s['artist'],
+          "level": s['level'],
+          "chords": "${(s['chords'] as List).length} chords",
+          "rawChords": (s['chords'] as List).length.toString(),
+          "status": s['status'],
+          "_id": s['_id'],
+        }).toList();
+        _requests = (results[4] as List).map((r) => {
+          "title": r['songTitle'],
+          "artist": r['artist'],
+          "user": r['userId']['username'],
+          "date": DateTime.parse(r['createdAt']).toString().substring(0, 10),
+          "tag": r['trackType'],
+          "status": r['status'],
+          "_id": r['_id'],
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error fetching admin data: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load data: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
+
 
   // ==========================================
   // MODAL DIALOG HANDLERS
@@ -255,25 +201,27 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildDialogGradientSubmitButton("Add Level", () {
+                      child: _buildDialogGradientSubmitButton("Add Level", () async {
                         if (titleController.text.isNotEmpty) {
-                          setState(() {
+                          try {
                             final chordsList = chordsController.text
                                 .split(",")
                                 .map((e) => e.trim())
                                 .where((e) => e.isNotEmpty)
                                 .toList();
 
-                            _levels.add({
-                              "num": "${_levels.length + 1}",
+                            await ApiService.createLevel(widget.userData!['_id'], {
                               "title": titleController.text,
-                              "chords": chordsList.isEmpty
-                                  ? ["C", "G"]
-                                  : chordsList,
-                              "accuracy": "${accuracyController.text}%",
-                              "points": "${pointsController.text} pts",
+                              "chords": chordsList,
+                              "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
+                              "rewardPoints": int.tryParse(pointsController.text) ?? 100,
+                              "difficulty": "Beginner",
+                              "levelNumber": _levels.length + 1,
                             });
-                          });
+                            _fetchData();
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to add level: $e")));
+                          }
                         }
                         Navigator.pop(context);
                       }),
@@ -432,16 +380,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Expanded(
                           child: _buildDialogGradientSubmitButton(
                             "Save Changes",
-                            () {
-                              setState(() {
-                                _levels[index] = {
-                                  "num": level["num"],
+                            () async {
+                              try {
+                                await ApiService.updateLevel(widget.userData!['_id'], level['_id'], {
                                   "title": titleController.text,
                                   "chords": currentChords,
-                                  "accuracy": "${accuracyController.text}%",
-                                  "points": "${pointsController.text} pts",
-                                };
-                              });
+                                  "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
+                                  "rewardPoints": int.tryParse(pointsController.text) ?? 100,
+                                });
+                                _fetchData();
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update level: $e")));
+                              }
                               Navigator.pop(context);
                             },
                           ),
@@ -583,19 +533,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Expanded(
                           child: _buildDialogGradientSubmitButton(
                             "Add Song",
-                            () {
+                            () async {
                               if (titleController.text.isNotEmpty) {
-                                setState(() {
-                                  _songs.add({
+                                try {
+                                  await ApiService.createSong(widget.userData!['_id'], {
                                     "title": titleController.text,
                                     "artist": artistController.text,
                                     "level": selectedDifficulty,
-                                    "chords":
-                                        "${chordsNumController.text} chords",
-                                    "rawChords": chordsNumController.text,
                                     "status": selectedStatus,
+                                    "chords": [], 
                                   });
-                                });
+                                  _fetchData();
+                                } catch (e) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to add song: $e")));
+                                }
                               }
                               Navigator.pop(context);
                             },
@@ -734,18 +685,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         Expanded(
                           child: _buildDialogGradientSubmitButton(
                             "Save Changes",
-                            () {
-                              setState(() {
-                                _songs[index] = {
+                            () async {
+                              try {
+                                await ApiService.updateSong(widget.userData!['_id'], song['_id'], {
                                   "title": titleController.text,
                                   "artist": artistController.text,
                                   "level": selectedDifficulty,
-                                  "chords":
-                                      "${chordsNumController.text} chords",
-                                  "rawChords": chordsNumController.text,
                                   "status": selectedStatus,
-                                };
-                              });
+                                });
+                                _fetchData();
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update song: $e")));
+                              }
                               Navigator.pop(context);
                             },
                           ),
@@ -978,28 +929,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   width: cardWidth,
                   icon: LucideIcons.users,
                   iconColor: const Color(0xFF06B6D4),
-                  value: "1,234",
+                  value: _isLoading ? "..." : "${_stats['totalUsers']}",
                   label: "Total Users",
                 ),
                 _buildMetricCard(
                   width: cardWidth,
                   icon: LucideIcons.activity,
                   iconColor: const Color(0xFFA855F7),
-                  value: "456",
+                  value: _isLoading ? "..." : "${_stats['activeToday']}",
                   label: "Active Today",
                 ),
                 _buildMetricCard(
                   width: cardWidth,
                   icon: LucideIcons.trending_up,
                   iconColor: const Color(0xFF22C55E),
-                  value: "84%",
+                  value: _isLoading ? "..." : "${_stats['avgAccuracy']}%",
                   label: "Avg Accuracy",
                 ),
                 _buildMetricCard(
                   width: cardWidth,
                   icon: LucideIcons.music,
                   iconColor: const Color(0xFFEAB308),
-                  value: "8,456",
+                  value: _isLoading ? "..." : "${_stats['totalSessions']}",
                   label: "Practice Sessions",
                 ),
               ],
@@ -1318,6 +1269,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             text: "Edit",
             onTap: () => _showEditLevelDialog(level, index),
           ),
+          const SizedBox(width: 8),
+          _buildOutlinedButton(
+            text: "Delete",
+            onTap: () async {
+              try {
+                await ApiService.deleteLevel(widget.userData!['_id'], level['_id']);
+                _fetchData();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to delete level: $e")));
+              }
+            },
+          ),
         ],
       ),
     );
@@ -1475,10 +1438,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(width: 8),
           _buildOutlinedButton(
             text: "Delete",
-            onTap: () {
-              setState(() {
-                _songs.removeAt(index);
-              });
+            onTap: () async {
+              try {
+                await ApiService.deleteSong(widget.userData!['_id'], song['_id']);
+                _fetchData();
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to delete song: $e")));
+              }
             },
           ),
         ],
@@ -1614,67 +1580,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 request["date"],
                 style: const TextStyle(color: Color(0xFF64748B), fontSize: 11),
               ),
-              const Text(
-                "  •  ",
-                style: TextStyle(color: Color(0xFF475569), fontSize: 11),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0284C7).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  request["tag"],
-                  style: const TextStyle(
-                    color: Color(0xFF38BDF8),
-                    fontSize: 10,
-                  ),
-                ),
-              ),
             ],
           ),
           const SizedBox(height: 14),
-          if (status == "Completed") ...[
-            Row(
-              children: const [
-                Icon(LucideIcons.trophy, color: Color(0xFF22C55E), size: 14),
-                SizedBox(width: 6),
-                Text(
-                  "Request fulfilled",
-                  style: TextStyle(
-                    color: Color(0xFF22C55E),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ] else if (status == "In Progress") ...[
+          if (status != "Completed")
             _buildGradientButton(
-              text: "Mark as Completed",
-              onTap: () {
-                setState(() {
-                  request["status"] = "Completed";
-                });
+              text: status == "In Progress" ? "Mark as Completed" : "Mark In Progress",
+              onTap: () async {
+                final newStatus = status == "In Progress" ? "Completed" : "In Progress";
+                try {
+                  await ApiService.updateRequestStatus(widget.userData!['_id'], request['_id'], newStatus);
+                  _fetchData();
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update status: $e")));
+                }
               },
             ),
-          ] else ...[
-            Row(
-              children: [
-                _buildGradientButton(
-                  text: "Mark In Progress",
-                  onTap: () {
-                    setState(() {
-                      request["status"] = "In Progress";
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildOutlinedButton(text: "Reject", onTap: () {}),
-              ],
-            ),
-          ],
         ],
       ),
     );

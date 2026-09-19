@@ -1,26 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
-
-class SongRequest {
-  final String songTitle;
-  final String artist;
-  final String trackType;
-  final String requestedDate;
-  final String status; // "Completed" or "In Progress"
-  final String? completedDate;
-
-  SongRequest({
-    required this.songTitle,
-    required this.artist,
-    required this.trackType,
-    required this.requestedDate,
-    required this.status,
-    this.completedDate,
-  });
-}
+import 'services/api_service.dart';
 
 class RequestSongScreen extends StatefulWidget {
-  const RequestSongScreen({super.key});
+  final Map<String, dynamic>? userData;
+  const RequestSongScreen({super.key, this.userData});
 
   @override
   State<RequestSongScreen> createState() => _RequestSongScreenState();
@@ -29,32 +13,38 @@ class RequestSongScreen extends StatefulWidget {
 class _RequestSongScreenState extends State<RequestSongScreen> {
   final _titleController = TextEditingController();
   final _artistController = TextEditingController();
+  List<dynamic> _myRequests = [];
+  bool _isLoading = true;
 
-  // Initial request list matching the screenshots
-  final List<SongRequest> _myRequests = [
-    SongRequest(
-      songTitle: "Ligaya",
-      artist: "Eraserheads",
-      trackType: "Acoustic",
-      requestedDate: "Mar 10, 2026",
-      status: "Completed",
-      completedDate: "Mar 15, 2026",
-    ),
-    SongRequest(
-      songTitle: "Mundo",
-      artist: "IV of Spades",
-      trackType: "Acoustic",
-      requestedDate: "Mar 18, 2026",
-      status: "In Progress",
-    ),
-    SongRequest(
-      songTitle: "Pagtingin",
-      artist: "Ben&Ben",
-      trackType: "Acoustic",
-      requestedDate: "Mar 20, 2026",
-      status: "In Progress",
-    ),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _fetchRequests();
+    });
+  }
+
+  Future<void> _fetchRequests() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = widget.userData?['_id'];
+      if (userId == null) throw Exception("User not authenticated");
+
+      final requests = await ApiService.getUserRequests(userId);
+      setState(() {
+        _myRequests = requests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error fetching requests: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load requests: $e')),
+        );
+      }
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -63,9 +53,10 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
     super.dispose();
   }
 
-  void _handleSubmit() {
+  Future<void> _handleSubmit() async {
     final title = _titleController.text.trim();
     final artist = _artistController.text.trim();
+    final userId = widget.userData?['_id'];
 
     if (title.isEmpty || artist.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -77,65 +68,62 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
       return;
     }
 
-    // Add new request to the top of the list
-    setState(() {
-      _myRequests.insert(
-        0,
-        SongRequest(
-          songTitle: title,
-          artist: artist,
-          trackType: "Acoustic",
-          requestedDate: "Jul 20, 2026",
-          status: "In Progress",
-        ),
-      );
-    });
+    try {
+      await ApiService.submitSongRequest(userId, title, artist);
+      
+      _titleController.clear();
+      _artistController.clear();
+      await _fetchRequests();
 
-    // Clear input fields
-    _titleController.clear();
-    _artistController.clear();
-
-    // Display "Request submitted successfully" pop-up dialog
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF1E293B)),
-        ),
-        title: Row(
-          children: const [
-            Icon(LucideIcons.circle_check, color: Color(0xFF10B981), size: 22),
-            SizedBox(width: 8),
-            Text(
-              "Success",
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            backgroundColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFF1E293B)),
             ),
-          ],
-        ),
-        content: const Text(
-          "Request submitted successfully",
-          style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              "OK",
-              style: TextStyle(
-                color: Color(0xFF38BDF8),
-                fontWeight: FontWeight.bold,
-              ),
+            title: Row(
+              children: const [
+                Icon(LucideIcons.circle_check, color: Color(0xFF10B981), size: 22),
+                SizedBox(width: 8),
+                Text(
+                  "Success",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
+            content: const Text(
+              "Request submitted successfully",
+              style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  "OK",
+                  style: TextStyle(
+                    color: Color(0xFF38BDF8),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to submit request: $e")),
+        );
+      }
+    }
   }
 
   @override
@@ -164,22 +152,24 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildFormCard(),
-              const SizedBox(height: 24),
-              _buildMyRequestsHeader(),
-              const SizedBox(height: 12),
-              ..._myRequests.map((req) => _buildRequestCard(req)),
-              const SizedBox(height: 16),
-              _buildHowItWorksCard(),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildFormCard(),
+                    const SizedBox(height: 24),
+                    _buildMyRequestsHeader(),
+                    const SizedBox(height: 12),
+                    ..._myRequests.map((req) => _buildRequestCard(req)),
+                    const SizedBox(height: 16),
+                    _buildHowItWorksCard(),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -403,8 +393,18 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
     );
   }
 
-  Widget _buildRequestCard(SongRequest request) {
-    final bool isCompleted = request.status == "Completed";
+  Widget _buildRequestCard(dynamic request) {
+    final bool isCompleted = request['status'] == "Completed";
+    
+    // Defensive parsing of createdAt
+    String date = "Unknown date";
+    if (request['createdAt'] != null) {
+      try {
+        date = DateTime.parse(request['createdAt']).toString().substring(0, 10);
+      } catch (e) {
+        debugPrint("Error parsing date: $e");
+      }
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -429,7 +429,7 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    request.songTitle,
+                    request['songTitle'],
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -438,7 +438,7 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    request.artist,
+                    request['artist'],
                     style: const TextStyle(
                       color: Color(0xFF64748B),
                       fontSize: 12,
@@ -463,7 +463,6 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
           const SizedBox(height: 12),
           Row(
             children: [
-              // Track Type Chip
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -474,7 +473,7 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
                   ),
                 ),
                 child: Text(
-                  request.trackType,
+                  request['trackType'],
                   style: const TextStyle(
                     color: Color(0xFF38BDF8),
                     fontSize: 10,
@@ -484,7 +483,6 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
               ),
               const SizedBox(width: 8),
 
-              // Status Chip
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -511,7 +509,7 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      request.status,
+                      request['status'],
                       style: TextStyle(
                         color: isCompleted
                             ? const Color(0xFF34D399)
@@ -532,17 +530,9 @@ class _RequestSongScreenState extends State<RequestSongScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Requested: ${request.requestedDate}",
+                "Requested: $date",
                 style: const TextStyle(color: Color(0xFF64748B), fontSize: 10),
               ),
-              if (isCompleted && request.completedDate != null)
-                Text(
-                  "Completed: ${request.completedDate}",
-                  style: const TextStyle(
-                    color: Color(0xFF059669),
-                    fontSize: 10,
-                  ),
-                ),
             ],
           ),
         ],

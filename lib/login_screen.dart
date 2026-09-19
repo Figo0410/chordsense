@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:animate_do/animate_do.dart';
 import 'services/api_service.dart';
+import 'admin_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,7 +47,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // 2. Direct user based on role
       if (role == 'admin') {
-        Navigator.pushReplacementNamed(context, '/admin');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => AdminDashboardScreen(userData: userData)),
+        );
       } else {
         Navigator.pushReplacementNamed(context, '/user', arguments: userData);
       }

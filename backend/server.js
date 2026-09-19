@@ -31,6 +31,12 @@ app.use('/api/learning-path', require('./routes/learningPathRoutes'));
 // Connects database sync endpoints
 app.use('/api/sync', require('./routes/syncRoutes'));
 
+// Connects admin endpoints
+app.use('/api/admin', require('./routes/adminRoutes'));
+
+// Connects song request endpoints
+app.use('/api/song-requests', require('./routes/songRequestRoutes'));
+
 // Serve Flutter Web Static Files
 app.use(express.static(path.join(__dirname, '../build/web')));
 

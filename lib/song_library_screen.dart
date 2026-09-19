@@ -443,7 +443,7 @@ class _SongLibraryScreenState extends State<SongLibraryScreen> {
           onPressed: () {
             Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (context) => const RequestSongScreen(),
+                builder: (context) => RequestSongScreen(userData: {'_id': widget.userId}),
               ),
             );
           },

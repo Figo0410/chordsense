@@ -46,8 +46,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+const adminAuth = require('../middleware/adminAuth');
+
+// PATCH /api/songs/:id - Update a song (Admin)
+router.patch('/:id', adminAuth, async (req, res) => {
+  try {
+    const updatedSong = await Song.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updatedSong) return res.status(404).json({ message: 'Song not found' });
+    res.status(200).json(updatedSong);
+  } catch (error) {
+    res.status(400).json({ message: 'Invalid song data', error: error.message });
+  }
+});
+
 // POST /api/songs - Create a new song (Admin)
-router.post('/', async (req, res) => {
+router.post('/', adminAuth, async (req, res) => {
   try {
     const { title, artist, level, difficulty, chords, status, progression, description } = req.body;
     const newSong = new Song({
@@ -68,7 +81,7 @@ router.post('/', async (req, res) => {
 });
 
 // DELETE /api/songs/:id - Delete a song (Admin)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
     const song = await Song.findByIdAndDelete(req.params.id);
     if (!song) return res.status(404).json({ message: 'Song not found' });
