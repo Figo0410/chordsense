@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'services/api_service.dart';
-import 'request_song_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   final Map<String, dynamic>? userData;
@@ -27,6 +26,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     "activeToday": 0,
     "avgAccuracy": 0,
     "totalSessions": 0,
+    "avgLevel": "1.0",
+    "totalPoints": "0",
+    "mostActiveUsers": [],
+    "popularChords": [],
   };
   bool _isLoading = true;
 
@@ -1629,21 +1632,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   width: cardWidth,
                   icon: LucideIcons.users,
                   iconColor: const Color(0xFF06B6D4),
-                  value: "1,234",
+                  value: _isLoading ? "..." : "${_stats['totalUsers']}",
                   label: "Total Users",
                 ),
                 _buildMetricCard(
                   width: cardWidth,
                   icon: LucideIcons.activity,
                   iconColor: const Color(0xFFA855F7),
-                  value: "456",
+                  value: _isLoading ? "..." : "${_stats['activeToday']}",
                   label: "Daily Active",
                 ),
                 _buildMetricCard(
                   width: cardWidth,
                   icon: LucideIcons.music,
                   iconColor: const Color(0xFFEAB308),
-                  value: "8,456",
+                  value: _isLoading ? "..." : "${_stats['totalSessions']}",
                   label: "Practice Sessions",
                 ),
               ],
@@ -1725,19 +1728,19 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 _buildSummaryBox(
                   width: summaryCardWidth,
                   title: "Avg Level",
-                  value: "7.0",
+                  value: _isLoading ? "..." : "${_stats['avgLevel'] ?? '1.0'}",
                   valueColor: const Color(0xFF06B6D4),
                 ),
                 _buildSummaryBox(
                   width: summaryCardWidth,
                   title: "Total Points",
-                  value: "10,750",
+                  value: _isLoading ? "..." : "${_stats['totalPoints'] ?? '0'}",
                   valueColor: const Color(0xFFA855F7),
                 ),
                 _buildSummaryBox(
                   width: summaryCardWidth,
                   title: "Total Sessions",
-                  value: "144",
+                  value: _isLoading ? "..." : "${_stats['totalSessions'] ?? 0}",
                   valueColor: Colors.white,
                 ),
               ],
@@ -2393,6 +2396,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildActiveUsersPanel(double width) {
+    final List<dynamic> activeUsers = _stats['mostActiveUsers'] ?? [];
     return Container(
       width: width,
       padding: const EdgeInsets.all(20),
@@ -2413,11 +2417,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildUserRow("Joshua Williams", "Level 7", "47 sessions"),
-          const SizedBox(height: 10),
-          _buildUserRow("Sarah Johnson", "Level 5", "32 sessions"),
-          const SizedBox(height: 10),
-          _buildUserRow("Mike Chen", "Level 9", "65 sessions"),
+          if (activeUsers.isEmpty)
+            _buildUserRow("No activity yet", "Level 1", "0 sessions")
+          else
+            for (int i = 0; i < activeUsers.length; i++) ...[
+              _buildUserRow(
+                activeUsers[i]['name'] ?? 'User',
+                activeUsers[i]['level'] ?? 'Level 1',
+                activeUsers[i]['sessions'] ?? '0 sessions',
+              ),
+              if (i < activeUsers.length - 1) const SizedBox(height: 10),
+            ],
         ],
       ),
     );
@@ -2466,6 +2476,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildPopularChordsPanel(double width) {
+    final List<dynamic> popularChords = _stats['popularChords'] ?? [];
     return Container(
       width: width,
       padding: const EdgeInsets.all(20),
@@ -2486,11 +2497,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          _buildChordRow("C Major", "450 practices"),
-          const SizedBox(height: 10),
-          _buildChordRow("G Major", "380 practices"),
-          const SizedBox(height: 10),
-          _buildChordRow("D Major", "320 practices"),
+          if (popularChords.isEmpty)
+            _buildChordRow("C Major", "0 practices")
+          else
+            for (int i = 0; i < popularChords.length; i++) ...[
+              _buildChordRow(
+                popularChords[i]['chord'] ?? 'C Major',
+                popularChords[i]['practices'] ?? '0 practices',
+              ),
+              if (i < popularChords.length - 1) const SizedBox(height: 10),
+            ],
         ],
       ),
     );
