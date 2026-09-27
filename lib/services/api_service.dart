@@ -405,6 +405,18 @@ class ApiService {
     }
   }
 
+  static Future<void> updateUserStatus(String adminId, String userId, String accountStatus) async {
+    final response = await _safeApiCall(() => http.patch(
+      Uri.parse('$baseUrl/admin/users/$userId/status'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': adminId},
+      body: jsonEncode({'accountStatus': accountStatus}),
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update user account status.');
+    }
+  }
+
   static Future<Map<String, dynamic>> getSystemSettings(String userId) async {
     final response = await _safeApiCall(() => http.get(
       Uri.parse('$baseUrl/admin/settings'),

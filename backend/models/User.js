@@ -115,6 +115,13 @@ const userSchema = new mongoose.Schema({
   resetPasswordToken: String,
   resetPasswordExpires: Date,
 
+  // Account Status ('Active' or 'Disabled')
+  accountStatus: {
+    type: String,
+    enum: ['Active', 'Disabled'],
+    default: 'Active'
+  },
+
   // --- AUTOMATIC SYNC TRACKING ---
   isSynced: {
     type: Boolean,

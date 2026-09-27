@@ -58,12 +58,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _stats = results[0] as Map<String, dynamic>; // Fix: Casting
         _maintenanceMode = (results[5] as Map<String, dynamic>)['maintenanceMode'] ?? false;
         _users = (results[1] as List).map((u) => {
-          "name": u['username'],
-          "email": u['email'],
-          "level": u['currentLevel'].toString(),
-          "points": u['totalPoints'].toString(),
-          "sessions": (u['practiceSessions'] as List).length,
-          "avatar": u['username'][0].toUpperCase(),
+          "name": u['username'] ?? 'User',
+          "email": u['email'] ?? '',
+          "level": (u['currentLevel'] ?? 1).toString(),
+          "points": (u['totalPoints'] ?? 0).toString(),
+          "sessions": ((u['practiceSessions'] as List?) ?? []).length,
+          "avatar": (u['username'] != null && u['username'].isNotEmpty) ? u['username'][0].toUpperCase() : 'U',
+          "accountStatus": u['accountStatus'] ?? 'Active',
+          "accuracy": u['accuracy'] ?? 0,
+          "streak": u['streak'] ?? 0,
+          "chordsMastered": u['chordsMastered'] ?? 0,
+          "createdAt": u['createdAt'] != null ? DateTime.parse(u['createdAt']).toString().substring(0, 10) : 'N/A',
           "_id": u['_id'],
         }).toList();
         _levels = (results[2] as List).map((l) => {
@@ -2419,6 +2424,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   Widget _buildUserListItem(Map<String, dynamic> user) {
+    final bool isDisabled = user["accountStatus"] == "Disabled";
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -2451,13 +2457,35 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  user["name"]!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  children: [
+                    Text(
+                      user["name"]!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDisabled
+                            ? Colors.red.withOpacity(0.15)
+                            : Colors.green.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        user["accountStatus"] ?? "Active",
+                        style: TextStyle(
+                          color: isDisabled ? Colors.redAccent : Colors.greenAccent,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -2487,7 +2515,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ],
           ),
-          const SizedBox(width: 32),
+          const SizedBox(width: 24),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -2505,8 +2533,196 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               ),
             ],
           ),
+          const SizedBox(width: 24),
+          _buildOutlinedButton(
+            text: "View",
+            onTap: () => _showViewUserDialog(user),
+          ),
+          const SizedBox(width: 8),
+          _buildOutlinedButton(
+            text: isDisabled ? "Enable Account" : "Disable Account",
+            onTap: () => _showConfirmStatusDialog(user, isDisabled),
+          ),
         ],
       ),
+    );
+  }
+
+  void _showConfirmStatusDialog(Map<String, dynamic> user, bool isDisabled) {
+    final targetStatus = isDisabled ? "Active" : "Disabled";
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0D1425),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF1E293B)),
+          ),
+          child: Container(
+            width: 380,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isDisabled ? "Enable User Account" : "Disable User Account",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  "Are you sure you want to ${isDisabled ? 'enable' : 'disable'} account for ${user["name"]}?",
+                  style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Cancel", style: TextStyle(color: Color(0xFF94A3B8))),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildGradientButton(
+                      text: isDisabled ? "Enable" : "Disable",
+                      onTap: () async {
+                        Navigator.pop(context);
+                        try {
+                          final adminId = widget.userData?['_id'];
+                          if (adminId != null) {
+                            await ApiService.updateUserStatus(adminId, user['_id'], targetStatus);
+                            _fetchData();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text("Account status updated to $targetStatus"),
+                                  backgroundColor: const Color(0xFF06B6D4),
+                                ),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Failed to update status: $e"),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showViewUserDialog(Map<String, dynamic> user) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.7),
+      builder: (context) {
+        return Dialog(
+          backgroundColor: const Color(0xFF0D1425),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFF1E293B)),
+          ),
+          child: Container(
+            width: 440,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      "User Details",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        LucideIcons.x,
+                        color: Color(0xFF64748B),
+                        size: 18,
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                _buildInfoRow("Username", user["name"] ?? 'N/A'),
+                const SizedBox(height: 12),
+                _buildInfoRow("Email", user["email"] ?? 'N/A'),
+                const SizedBox(height: 12),
+                _buildInfoRow("Current Level", "Level ${user["level"] ?? '1'}"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Total Points", "${user["points"] ?? '0'} pts"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Practice Sessions", "${user["sessions"] ?? 0}"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Accuracy", "${user["accuracy"] ?? 0}%"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Streak", "${user["streak"] ?? 0} days"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Chords Mastered", "${user["chordsMastered"] ?? 0}"),
+                const SizedBox(height: 12),
+                _buildInfoRow("Account Status", user["accountStatus"] ?? 'Active'),
+                const SizedBox(height: 12),
+                _buildInfoRow("Joined Date", user["createdAt"] ?? 'N/A'),
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _buildGradientButton(
+                    text: "Close",
+                    onTap: () => Navigator.pop(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 

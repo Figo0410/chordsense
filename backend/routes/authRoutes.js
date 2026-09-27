@@ -236,6 +236,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
+    if (user.accountStatus === 'Disabled') {
+      return res.status(403).json({ message: 'Account is disabled. Please contact the administrator.' });
+    }
+
     res.json({
       _id: user._id,
       username: user.username,

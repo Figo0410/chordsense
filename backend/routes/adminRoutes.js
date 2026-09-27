@@ -143,6 +143,25 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
+// PATCH /api/admin/users/:id/status - Update user accountStatus ('Active' or 'Disabled')
+router.patch('/users/:id/status', async (req, res) => {
+  try {
+    const { accountStatus } = req.body;
+    if (!['Active', 'Disabled'].includes(accountStatus)) {
+      return res.status(400).json({ message: 'Invalid accountStatus value. Must be Active or Disabled.' });
+    }
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { accountStatus },
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'User account status updated successfully', user });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // GET /api/admin/settings - Get system settings
 router.get('/settings', async (req, res) => {
   try {
