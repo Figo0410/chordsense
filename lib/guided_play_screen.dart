@@ -212,6 +212,11 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
     debugPrint("Audio capture error: $error");
   }
 
+  int _matchingFramesCount = 0;
+  final int _requiredMatchingFrames = 5;
+  final double _rmsThreshold = 0.025;
+  double _lastRawPitch = 0.0;
+
   void _onAudioStream(dynamic obj) async {
     if (!_isListening || _hasDetectedChord || !mounted) return;
 
@@ -236,13 +241,35 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
         formattedBuffer = audioBuffer;
       }
 
+      // Compute RMS signal strength to reject speech, breathing, and background noise
+      double rms = 0.0;
+      for (double sample in formattedBuffer) {
+        rms += sample * sample;
+      }
+      rms = sqrt(rms / formattedBuffer.length);
+
+      if (rms < _rmsThreshold) {
+        _matchingFramesCount = 0;
+        _lastRawPitch = 0.0;
+        return;
+      }
+
       final Float32List float32buffer = Float32List.fromList(formattedBuffer);
       final result = await _pitchDetector.getPitchFromFloatBuffer(
         float32buffer,
       );
 
-      if (result.pitched && result.pitch > 60.0 && result.pitch < 1000.0) {
+      if (result.pitched && result.pitch > 75.0 && result.pitch < 700.0) {
         final double pitch = result.pitch;
+
+        // Check pitch stability across consecutive frames to filter out speech/voice jitter
+        if (_lastRawPitch > 0.0 && (pitch - _lastRawPitch).abs() > 14.0) {
+          _matchingFramesCount = 0;
+          _lastRawPitch = pitch;
+          return;
+        }
+        _lastRawPitch = pitch;
+
         final String noteName = _frequencyToNoteName(pitch);
 
         if (mounted) {
@@ -253,6 +280,9 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
         }
 
         _verifyChordMatch(pitch);
+      } else {
+        _matchingFramesCount = 0;
+        _lastRawPitch = 0.0;
       }
     } catch (e) {
       debugPrint("Pitch detection error: $e");
@@ -270,7 +300,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
     bool isMatch = false;
     if (validFreqs != null) {
       for (double targetFreq in validFreqs) {
-        if ((pitch - targetFreq).abs() <= 15.0) {
+        if ((pitch - targetFreq).abs() <= 10.0) {
           isMatch = true;
           break;
         }
@@ -280,8 +310,21 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
     _feedbackResetTimer?.cancel();
 
     if (isMatch) {
-      _handleChordSuccess();
+      _matchingFramesCount++;
+      if (_matchingFramesCount >= _requiredMatchingFrames) {
+        _matchingFramesCount = 0;
+        _handleChordSuccess();
+      } else {
+        if (mounted && !_hasDetectedChord) {
+          setState(() {
+            _isCorrectFeedback = false;
+            _feedbackMessage =
+                "Hold chord... (${_matchingFramesCount}/$_requiredMatchingFrames)";
+          });
+        }
+      }
     } else {
+      _matchingFramesCount = 0;
       if (mounted && !_hasDetectedChord) {
         setState(() {
           _isCorrectFeedback = false;
