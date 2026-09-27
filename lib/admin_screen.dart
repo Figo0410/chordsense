@@ -51,10 +51,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ApiService.getLearningPaths(),
         ApiService.getSongs(),
         ApiService.getAllRequests(userId), // Fetch real requests
+        ApiService.getSystemSettings(userId), // Fetch real settings
       ]);
 
       setState(() {
         _stats = results[0] as Map<String, dynamic>; // Fix: Casting
+        _maintenanceMode = (results[5] as Map<String, dynamic>)['maintenanceMode'] ?? false;
         _users = (results[1] as List).map((u) => {
           "name": u['username'],
           "email": u['email'],
@@ -2203,10 +2205,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               const SizedBox(height: 24),
               _buildSettingsButton(
                 label: "Maintenance Mode: ${_maintenanceMode ? 'ON' : 'OFF'}",
-                onTap: () {
-                  setState(() {
-                    _maintenanceMode = !_maintenanceMode;
-                  });
+                onTap: () async {
+                  final newMode = !_maintenanceMode;
+                  try {
+                    final userId = widget.userData?['_id'];
+                    if (userId != null) {
+                      await ApiService.updateSystemSettings(userId, {"maintenanceMode": newMode});
+                    }
+                    setState(() {
+                      _maintenanceMode = newMode;
+                    });
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Maintenance Mode turned ${newMode ? 'ON' : 'OFF'}"),
+                          backgroundColor: const Color(0xFF06B6D4),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text("Failed to update settings: $e"),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
                 },
               ),
               const SizedBox(height: 12),

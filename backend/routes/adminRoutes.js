@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Song = require('../models/Song');
 const LearningPath = require('../models/LearningPath');
+const Setting = require('../models/Setting');
 const adminAuth = require('../middleware/adminAuth');
 
 // Apply adminAuth to all routes in this file
@@ -137,6 +138,37 @@ router.delete('/users/:id', async (req, res) => {
     const user = await User.findByIdAndDelete(req.params.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// GET /api/admin/settings - Get system settings
+router.get('/settings', async (req, res) => {
+  try {
+    let setting = await Setting.findOne({ key: 'system_settings' });
+    if (!setting) {
+      setting = await Setting.create({ key: 'system_settings', maintenanceMode: false });
+    }
+    res.json({ maintenanceMode: setting.maintenanceMode });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// PUT /api/admin/settings - Update system settings
+router.put('/settings', async (req, res) => {
+  try {
+    const { maintenanceMode } = req.body;
+    if (typeof maintenanceMode !== 'boolean') {
+      return res.status(400).json({ message: 'Invalid value for maintenanceMode' });
+    }
+    const setting = await Setting.findOneAndUpdate(
+      { key: 'system_settings' },
+      { maintenanceMode },
+      { new: true, upsert: true }
+    );
+    res.json({ message: 'Settings updated successfully', maintenanceMode: setting.maintenanceMode });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

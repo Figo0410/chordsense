@@ -405,6 +405,31 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> getSystemSettings(String userId) async {
+    final response = await _safeApiCall(() => http.get(
+      Uri.parse('$baseUrl/admin/settings'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+    ));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to fetch system settings.');
+    }
+  }
+
+  static Future<void> updateSystemSettings(String userId, Map<String, dynamic> data) async {
+    final response = await _safeApiCall(() => http.put(
+      Uri.parse('$baseUrl/admin/settings'),
+      headers: {'Content-Type': 'application/json', 'x-user-id': userId},
+      body: jsonEncode(data),
+    ));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to update system settings.');
+    }
+  }
+
   static Future<void> createSong(String userId, Map<String, dynamic> data) async {
     final response = await _safeApiCall(() => http.post(
       Uri.parse('$baseUrl/songs'),
