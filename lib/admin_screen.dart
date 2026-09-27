@@ -78,6 +78,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           "level": s['level'],
           "chords": "${(s['chords'] as List).length} chords",
           "rawChords": (s['chords'] as List).length.toString(),
+          "actualChords": s['chords'] is List ? s['chords'] : [],
           "status": s['status'],
           "_id": s['_id'],
         }).toList();
@@ -110,130 +111,191 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _showAddLevelDialog() {
     final titleController = TextEditingController();
-    final chordsController = TextEditingController();
     final accuracyController = TextEditingController(text: "70");
     final pointsController = TextEditingController(text: "100");
+    List<String> selectedChords = ["C Major", "G Major"];
+    final List<String> availableChords = [
+      "C Major",
+      "G Major",
+      "D Major",
+      "A Major",
+      "E Major",
+      "Bm",
+      "F#m"
+    ];
 
     showDialog(
       context: context,
       barrierColor: Colors.black.withOpacity(0.7),
       builder: (context) {
-        return Dialog(
-          backgroundColor: const Color(0xFF0D1425),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: Color(0xFF1E293B)),
-          ),
-          child: Container(
-            width: 440,
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Dialog(
+              backgroundColor: const Color(0xFF0D1425),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: Color(0xFF1E293B)),
+              ),
+              child: Container(
+                width: 440,
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Add New Level",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Add New Level",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            LucideIcons.x,
+                            color: Color(0xFF64748B),
+                            size: 18,
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        LucideIcons.x,
-                        color: Color(0xFF64748B),
-                        size: 18,
-                      ),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
+                    const SizedBox(height: 20),
+                    _buildDialogLabel("Level Name"),
+                    const SizedBox(height: 6),
+                    _buildDialogTextField(
+                      controller: titleController,
+                      hintText: "e.g. Beginner I",
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                _buildDialogLabel("Level Name"),
-                const SizedBox(height: 6),
-                _buildDialogTextField(
-                  controller: titleController,
-                  hintText: "e.g. Beginner I",
-                ),
-                const SizedBox(height: 16),
-                _buildDialogLabel("Chords (comma-separated)"),
-                const SizedBox(height: 6),
-                _buildDialogTextField(
-                  controller: chordsController,
-                  hintText: "e.g. C, G, D, Am",
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildDialogLabel("Min. Accuracy (%)"),
-                          const SizedBox(height: 6),
-                          _buildDialogTextField(controller: accuracyController),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildDialogLabel("Points Reward"),
-                          const SizedBox(height: 6),
-                          _buildDialogTextField(controller: pointsController),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildDialogCancelButton(
-                        () => Navigator.pop(context),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildDialogGradientSubmitButton("Add Level", () async {
-                        if (titleController.text.isNotEmpty) {
-                          try {
-                            final chordsList = chordsController.text
-                                .split(",")
-                                .map((e) => e.trim())
-                                .where((e) => e.isNotEmpty)
-                                .toList();
-
-                            await ApiService.createLevel(widget.userData!['_id'], {
-                              "title": titleController.text,
-                              "chords": chordsList,
-                              "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
-                              "rewardPoints": int.tryParse(pointsController.text) ?? 100,
-                              "difficulty": "Beginner",
-                              "levelNumber": _levels.length + 1,
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Chords (${selectedChords.length} selected)"),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: availableChords.map((chord) {
+                        final bool isSelected = selectedChords.contains(chord);
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              if (isSelected) {
+                                selectedChords.remove(chord);
+                              } else {
+                                selectedChords.add(chord);
+                              }
                             });
-                            _fetchData();
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to add level: $e")));
-                          }
-                        }
-                        Navigator.pop(context);
-                      }),
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF0284C7).withOpacity(0.3)
+                                  : const Color(0xFF070B16),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                            child: Text(
+                              chord,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF94A3B8),
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDialogLabel("Min. Accuracy (%)"),
+                              const SizedBox(height: 6),
+                              _buildDialogTextField(controller: accuracyController),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildDialogLabel("Points Reward"),
+                              const SizedBox(height: 6),
+                              _buildDialogTextField(controller: pointsController),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildDialogCancelButton(
+                            () => Navigator.pop(context),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildDialogGradientSubmitButton("Add Level", () async {
+                            if (titleController.text.trim().isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Please enter a level title")),
+                              );
+                              return;
+                            }
+                            if (selectedChords.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Please select at least one chord")),
+                              );
+                              return;
+                            }
+                            try {
+                              await ApiService.createLevel(widget.userData!['_id'], {
+                                "title": titleController.text.trim(),
+                                "chords": selectedChords,
+                                "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
+                                "rewardPoints": int.tryParse(pointsController.text) ?? 100,
+                                "difficulty": "Beginner",
+                                "levelNumber": _levels.length + 1,
+                              });
+                              _fetchData();
+                              Navigator.pop(context);
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to add level: $e")));
+                            }
+                          }),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -241,10 +303,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   void _showEditLevelDialog(Map<String, dynamic> level, int index) {
     final titleController = TextEditingController(text: level["title"]);
-    List<String> currentChords = List<String>.from(level["chords"]);
-    final chordsController = TextEditingController(
-      text: currentChords.join(", "),
-    );
+    List<String> selectedChords = List<String>.from(level["chords"] ?? ["C Major", "G Major"]);
+    final List<String> availableChords = [
+      "C Major",
+      "G Major",
+      "D Major",
+      "A Major",
+      "E Major",
+      "Bm",
+      "F#m"
+    ];
     final accuracyController = TextEditingController(
       text: level["accuracy"].replaceAll("%", ""),
     );
@@ -299,43 +367,51 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 6),
                     _buildDialogTextField(controller: titleController),
                     const SizedBox(height: 16),
-                    _buildDialogLabel("Chords (comma-separated)"),
+                    _buildDialogLabel("Chords (${selectedChords.length} selected)"),
                     const SizedBox(height: 6),
-                    _buildDialogTextField(
-                      controller: chordsController,
-                      onChanged: (val) {
-                        setModalState(() {
-                          currentChords = val
-                              .split(",")
-                              .map((e) => e.trim())
-                              .where((e) => e.isNotEmpty)
-                              .toList();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
-                      children: currentChords.map((chord) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0284C7).withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF0284C7).withOpacity(0.5),
+                      children: availableChords.map((chord) {
+                        final bool isSelected = selectedChords.contains(chord);
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              if (isSelected) {
+                                selectedChords.remove(chord);
+                              } else {
+                                selectedChords.add(chord);
+                              }
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
                             ),
-                          ),
-                          child: Text(
-                            chord,
-                            style: const TextStyle(
-                              color: Color(0xFF38BDF8),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFF0284C7).withOpacity(0.3)
+                                  : const Color(0xFF070B16),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF0284C7)
+                                    : const Color(0xFF1E293B),
+                              ),
+                            ),
+                            child: Text(
+                              chord,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? const Color(0xFF38BDF8)
+                                    : const Color(0xFF94A3B8),
+                                fontSize: 12,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                              ),
                             ),
                           ),
                         );
@@ -384,18 +460,33 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           child: _buildDialogGradientSubmitButton(
                             "Save Changes",
                             () async {
+                              if (titleController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Please enter a level title")),
+                                );
+                                return;
+                              }
+                              if (selectedChords.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Please select at least one chord")),
+                                );
+                                return;
+                              }
+
                               try {
                                 await ApiService.updateLevel(widget.userData!['_id'], level['_id'], {
-                                  "title": titleController.text,
-                                  "chords": currentChords,
+                                  "title": titleController.text.trim(),
+                                  "chords": selectedChords,
                                   "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
                                   "rewardPoints": int.tryParse(pointsController.text) ?? 100,
                                 });
                                 _fetchData();
+                                Navigator.pop(context);
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update level: $e")));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Failed to update level: $e")),
+                                );
                               }
-                              Navigator.pop(context);
                             },
                           ),
                         ),
@@ -414,9 +505,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showAddSongDialog() {
     final titleController = TextEditingController();
     final artistController = TextEditingController();
-    final chordsNumController = TextEditingController(text: "3");
     String selectedDifficulty = "Beginner";
     String selectedStatus = "Active";
+    List<String> selectedChords = ["C Major", "G Major", "D Major"];
+    final List<String> availableChords = [
+      "C Major",
+      "G Major",
+      "D Major",
+      "A Major",
+      "E Major",
+      "Bm",
+      "F#m"
+    ];
 
     showDialog(
       context: context,
@@ -475,43 +575,126 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       hintText: "e.g. Eraserheads",
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDialogLabel("Difficulty"),
-                              const SizedBox(height: 6),
-                              _buildDialogDropdown(
-                                value: selectedDifficulty,
-                                items: ["Beginner", "Intermediate", "Advanced"],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setModalState(
-                                      () => selectedDifficulty = val,
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDialogLabel("Number of Chords"),
-                              const SizedBox(height: 6),
-                              _buildDialogTextField(
-                                controller: chordsNumController,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    _buildDialogLabel("Difficulty"),
+                    const SizedBox(height: 6),
+                    _buildDialogDropdown(
+                      value: selectedDifficulty,
+                      items: ["Beginner", "Intermediate", "Advanced"],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(
+                            () => selectedDifficulty = val,
+                          );
+                        }
+                      },
                     ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Available Chords (Click to add)"),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: availableChords.map((chord) {
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              selectedChords.add(chord);
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF070B16),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  "+ ",
+                                  style: TextStyle(
+                                    color: Color(0xFF38BDF8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  chord,
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Chord Progression (${selectedChords.length})"),
+                    const SizedBox(height: 6),
+                    selectedChords.isEmpty
+                        ? const Text(
+                            "No chords selected. Click chords above to add.",
+                            style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                          )
+                        : Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: selectedChords.asMap().entries.map((entry) {
+                              final int index = entry.key;
+                              final String chord = entry.value;
+                              return InkWell(
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedChords.removeAt(index);
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        "${index + 1}. $chord",
+                                        style: const TextStyle(
+                                          color: Color(0xFF38BDF8),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        LucideIcons.x,
+                                        size: 12,
+                                        color: Color(0xFF38BDF8),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
                     const SizedBox(height: 16),
                     _buildDialogLabel("Status"),
                     const SizedBox(height: 6),
@@ -537,21 +720,49 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           child: _buildDialogGradientSubmitButton(
                             "Add Song",
                             () async {
-                              if (titleController.text.isNotEmpty) {
-                                try {
-                                  await ApiService.createSong(widget.userData!['_id'], {
-                                    "title": titleController.text,
-                                    "artist": artistController.text,
-                                    "level": selectedDifficulty,
-                                    "status": selectedStatus,
-                                    "chords": [], 
-                                  });
-                                  _fetchData();
-                                } catch (e) {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to add song: $e")));
-                                }
+                              if (titleController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please enter a song title"),
+                                  ),
+                                );
+                                return;
                               }
-                              Navigator.pop(context);
+                              if (artistController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please enter an artist"),
+                                  ),
+                                );
+                                return;
+                              }
+                              if (selectedChords.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Please select at least one chord"),
+                                  ),
+                                );
+                                return;
+                              }
+
+                              try {
+                                await ApiService.createSong(widget.userData!['_id'], {
+                                  "title": titleController.text.trim(),
+                                  "artist": artistController.text.trim(),
+                                  "level": selectedDifficulty,
+                                  "difficulty": selectedDifficulty,
+                                  "status": selectedStatus,
+                                  "chords": selectedChords,
+                                });
+                                _fetchData();
+                                Navigator.pop(context);
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text("Failed to add song: $e"),
+                                  ),
+                                );
+                              }
                             },
                           ),
                         ),
@@ -570,11 +781,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   void _showEditSongDialog(Map<String, dynamic> song, int index) {
     final titleController = TextEditingController(text: song["title"]);
     final artistController = TextEditingController(text: song["artist"]);
-    final chordsNumController = TextEditingController(
-      text: song["rawChords"] ?? "4",
-    );
     String selectedDifficulty = song["level"];
     String selectedStatus = song["status"] ?? "Active";
+    List<String> selectedChords = List<String>.from(song["actualChords"] ?? ["C Major", "G Major", "D Major"]);
+    final List<String> availableChords = [
+      "C Major",
+      "G Major",
+      "D Major",
+      "A Major",
+      "E Major",
+      "Bm",
+      "F#m"
+    ];
 
     showDialog(
       context: context,
@@ -627,43 +845,126 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 6),
                     _buildDialogTextField(controller: artistController),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDialogLabel("Difficulty"),
-                              const SizedBox(height: 6),
-                              _buildDialogDropdown(
-                                value: selectedDifficulty,
-                                items: ["Beginner", "Intermediate", "Advanced"],
-                                onChanged: (val) {
-                                  if (val != null) {
-                                    setModalState(
-                                      () => selectedDifficulty = val,
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildDialogLabel("Number of Chords"),
-                              const SizedBox(height: 6),
-                              _buildDialogTextField(
-                                controller: chordsNumController,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    _buildDialogLabel("Difficulty"),
+                    const SizedBox(height: 6),
+                    _buildDialogDropdown(
+                      value: selectedDifficulty,
+                      items: ["Beginner", "Intermediate", "Advanced"],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setModalState(
+                            () => selectedDifficulty = val,
+                          );
+                        }
+                      },
                     ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Available Chords (Click to add)"),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: availableChords.map((chord) {
+                        return InkWell(
+                          onTap: () {
+                            setModalState(() {
+                              selectedChords.add(chord);
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF070B16),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF1E293B),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  "+ ",
+                                  style: TextStyle(
+                                    color: Color(0xFF38BDF8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  chord,
+                                  style: const TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Chord Progression (${selectedChords.length})"),
+                    const SizedBox(height: 6),
+                    selectedChords.isEmpty
+                        ? const Text(
+                            "No chords selected. Click chords above to add.",
+                            style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                          )
+                        : Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: selectedChords.asMap().entries.map((entry) {
+                              final int index = entry.key;
+                              final String chord = entry.value;
+                              return InkWell(
+                                onTap: () {
+                                  setModalState(() {
+                                    selectedChords.removeAt(index);
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0284C7).withOpacity(0.3),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: const Color(0xFF0284C7),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        "${index + 1}. $chord",
+                                        style: const TextStyle(
+                                          color: Color(0xFF38BDF8),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      const Icon(
+                                        LucideIcons.x,
+                                        size: 12,
+                                        color: Color(0xFF38BDF8),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
                     const SizedBox(height: 16),
                     _buildDialogLabel("Status"),
                     const SizedBox(height: 6),
@@ -689,18 +990,41 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           child: _buildDialogGradientSubmitButton(
                             "Save Changes",
                             () async {
+                              if (titleController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Please enter a song title")),
+                                );
+                                return;
+                              }
+                              if (artistController.text.trim().isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Please enter an artist")),
+                                );
+                                return;
+                              }
+                              if (selectedChords.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Please select at least one chord")),
+                                );
+                                return;
+                              }
+
                               try {
                                 await ApiService.updateSong(widget.userData!['_id'], song['_id'], {
-                                  "title": titleController.text,
-                                  "artist": artistController.text,
+                                  "title": titleController.text.trim(),
+                                  "artist": artistController.text.trim(),
                                   "level": selectedDifficulty,
+                                  "difficulty": selectedDifficulty,
                                   "status": selectedStatus,
+                                  "chords": selectedChords,
                                 });
                                 _fetchData();
+                                Navigator.pop(context);
                               } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update song: $e")));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text("Failed to update song: $e")),
+                                );
                               }
-                              Navigator.pop(context);
                             },
                           ),
                         ),
