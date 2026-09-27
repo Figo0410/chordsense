@@ -279,7 +279,7 @@ class _RankingScreenState extends State<RankingScreen> {
                         ),
                         const SizedBox(height: 12),
                         _buildPerformanceSummary(currentUser, pointsToNext),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 70),
                       ],
                     ),
                   );
