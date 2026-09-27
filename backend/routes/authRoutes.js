@@ -393,6 +393,34 @@ router.get('/profile/:id', async (req, res) => {
   }
 });
 
+// PUT UPDATE USER PROFILE & SETTINGS ROUTE
+router.put('/profile/:id', async (req, res) => {
+  try {
+    const { username, email, bio, language, notificationPreferences } = req.body;
+    const updateData = {};
+    if (username !== undefined) updateData.username = username;
+    if (email !== undefined) updateData.email = email;
+    if (bio !== undefined) updateData.bio = bio;
+    if (language !== undefined) updateData.language = language;
+    if (notificationPreferences !== undefined) updateData.notificationPreferences = notificationPreferences;
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (err) {
+    console.error('Error updating profile:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET USER PROFILE / BACKEND SYNC ROUTE
 router.get('/user/:id', async (req, res) => {
   try {

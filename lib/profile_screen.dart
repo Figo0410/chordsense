@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'achievements_screen.dart';
 import 'login_screen.dart';
 import 'services/api_service.dart';
@@ -36,8 +38,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     if (widget.userProfileData != null) {
       _userData = Map<String, dynamic>.from(widget.userProfileData!);
+      _syncSettingsAndPreferences();
     }
     _fetchFreshUserData();
+  }
+
+  void _syncSettingsAndPreferences() {
+    if (_userData.containsKey('language') && _userData['language'] != null) {
+      _selectedLanguage = _userData['language'].toString();
+    }
+    if (_userData.containsKey('notificationPreferences') && _userData['notificationPreferences'] is Map) {
+      final prefs = _userData['notificationPreferences'];
+      _practiceReminders = prefs['practiceReminders'] ?? true;
+      _achievementsNotif = prefs['achievementsNotif'] ?? true;
+      _weeklyReportNotif = prefs['weeklyReportNotif'] ?? false;
+      _newSongsNotif = prefs['newSongsNotif'] ?? true;
+      _streakAlertsNotif = prefs['streakAlertsNotif'] ?? true;
+    }
   }
 
   // Fetch real data from backend
@@ -56,11 +73,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
         if (mounted) {
           setState(() {
             _userData = freshData;
+            _syncSettingsAndPreferences();
           });
         }
       }
     } catch (e) {
       debugPrint('Error fetching profile data: $e');
+    }
+  }
+
+  Future<void> _saveSettingsToBackend() async {
+    final userId = _userData['_id'] ?? _userData['id'];
+    if (userId == null) {
+      _showToast("Settings saved locally.");
+      return;
+    }
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiService.baseUrl}/auth/profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'language': _selectedLanguage,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final updated = jsonDecode(response.body);
+        setState(() {
+          _userData = updated;
+          _syncSettingsAndPreferences();
+        });
+        _showToast("Settings saved successfully.");
+      } else {
+        _showToast("Settings saved locally.");
+      }
+    } catch (e) {
+      _showToast("Settings saved offline.");
+    }
+  }
+
+  Future<void> _saveNotificationPreferencesToBackend() async {
+    final userId = _userData['_id'] ?? _userData['id'];
+    if (userId == null) {
+      _showToast("Notification preferences saved locally.");
+      return;
+    }
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiService.baseUrl}/auth/profile/$userId'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'notificationPreferences': {
+            'practiceReminders': _practiceReminders,
+            'achievementsNotif': _achievementsNotif,
+            'weeklyReportNotif': _weeklyReportNotif,
+            'newSongsNotif': _newSongsNotif,
+            'streakAlertsNotif': _streakAlertsNotif,
+          },
+        }),
+      );
+      if (response.statusCode == 200) {
+        final updated = jsonDecode(response.body);
+        setState(() {
+          _userData = updated;
+          _syncSettingsAndPreferences();
+        });
+        _showToast("Notification preferences saved successfully.");
+      } else {
+        _showToast("Preferences saved locally.");
+      }
+    } catch (e) {
+      _showToast("Preferences saved offline.");
+    }
+  }
+
+  void _shareAppAction() async {
+    final username = _userData['username'] ?? 'friend';
+    final String inviteLink = "https://chordsense.app/invite/$username";
+    try {
+      await Share.share(
+        "Check out ChordSense - the ultimate interactive guitar learning and tuning app! Join my journey or start yours here: $inviteLink",
+        subject: "Join me on ChordSense!",
+      );
+    } catch (e) {
+      Clipboard.setData(ClipboardData(text: inviteLink));
+      _showToast("Invite link copied to clipboard!");
     }
   }
 
@@ -488,8 +584,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               iconColor: const Color(0xFF0EA5E9),
                               title: "Email Support",
                               subtitle: "support@chordsense.app",
-                              onTap: () =>
-                                  _showToast("Opening email client..."),
+                              onTap: () async {
+                                final Uri emailUri = Uri(
+                                  scheme: 'mailto',
+                                  path: 'support@chordsense.app',
+                                  query: 'subject=ChordSense Support Request',
+                                );
+                                try {
+                                  if (await canLaunchUrl(emailUri)) {
+                                    await launchUrl(emailUri);
+                                  } else {
+                                    _showToast("Could not open email client.");
+                                  }
+                                } catch (e) {
+                                  _showToast("Error opening email client.");
+                                }
+                              },
                             ),
                             const SizedBox(height: 8),
                             _buildContactItem(
@@ -497,7 +607,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               iconColor: const Color(0xFFA855F7),
                               title: "Community Forum",
                               subtitle: "Ask other ChordSense players",
-                              onTap: () => _showToast("Opening forum..."),
+                              onTap: () async {
+                                final Uri forumUri = Uri.parse('https://github.com/Figo0410/chordsense/discussions');
+                                try {
+                                  if (await canLaunchUrl(forumUri)) {
+                                    await launchUrl(forumUri, mode: LaunchMode.externalApplication);
+                                  } else {
+                                    _showToast("Could not open community forum link.");
+                                  }
+                                } catch (e) {
+                                  _showToast("Error opening community forum.");
+                                }
+                              },
                             ),
                             const SizedBox(height: 24),
                             const Center(
@@ -685,233 +806,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showShareDialog() {
-    final username = _userData['username'] ?? 'friend';
-    final String inviteLink = "https://chordsense.app/invite/$username";
-
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 24,
-          ),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFF1E293B)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const SizedBox(width: 18),
-                    const Text(
-                      "Share ChordSense",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => Navigator.of(context).pop(),
-                      child: const Icon(
-                        LucideIcons.x,
-                        color: Color(0xFF94A3B8),
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Container(
-                  width: 54,
-                  height: 54,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF43F5E).withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Text("🎸", style: TextStyle(fontSize: 28)),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  "Invite your friends to ChordSense!",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  "Help others start their guitar journey.",
-                  style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
-                ),
-                const SizedBox(height: 24),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Your invite link",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF0B1120),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xFF1E293B)),
-                        ),
-                        child: Text(
-                          inviteLink,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF94A3B8),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: () {
-                        Clipboard.setData(ClipboardData(text: inviteLink));
-                        _showToast("Link copied to clipboard!");
-                      },
-                      child: Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF06B6D4),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          LucideIcons.copy,
-                          color: Colors.black,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                const Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    "Share via",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildShareOptionCard(
-                        icon: LucideIcons.message_circle,
-                        label: "Message",
-                        iconColor: const Color(0xFF22C55E),
-                        onTap: () => _showToast("Opening Messages..."),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildShareOptionCard(
-                        icon: LucideIcons.mail,
-                        label: "Email",
-                        iconColor: const Color(0xFF38BDF8),
-                        onTap: () => _showToast("Opening Email..."),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildShareOptionCard(
-                        icon: LucideIcons.share_2,
-                        label: "More",
-                        iconColor: const Color(0xFFA855F7),
-                        onTap: () => _showToast("Opening Share menu..."),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildShareOptionCard({
-    required IconData icon,
-    required String label,
-    required Color iconColor,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B1120),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1E293B)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: iconColor, size: 22),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _showSettingsDialog() {
     showDialog(
       context: context,
@@ -1060,7 +954,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          _showToast("Settings saved.");
+                          _saveSettingsToBackend();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF06B6D4),
@@ -1123,6 +1017,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showNotificationsDialog() {
+    final List badgeHistory = (_userData['badgeHistory'] is List) ? (_userData['badgeHistory'] as List) : [];
+    final List practiceSessions = (_userData['practiceSessions'] is List) ? (_userData['practiceSessions'] as List) : [];
+
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -1186,31 +1083,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             _buildSectionHeader("RECENT"),
                             const SizedBox(height: 10),
-                            _buildRecentNotifItem(
-                              emojiIcon: "🏆",
-                              title: "New Achievement Unlocked!",
-                              subtitle: "You've mastered the C chord.",
-                              time: "2h ago",
-                              isUnread: true,
-                            ),
-                            const SizedBox(height: 8),
-                            _buildRecentNotifItem(
-                              emojiIcon: "🔥",
-                              title: "Streak Reminder",
-                              subtitle:
-                                  "Don't break your streak — practice today!",
-                              time: "5h ago",
-                              isUnread: true,
-                            ),
-                            const SizedBox(height: 8),
-                            _buildRecentNotifItem(
-                              emojiIcon: "🎸",
-                              title: "New Song Added",
-                              subtitle:
-                                  '"Anak" by Freddie Aguilar is now available.',
-                              time: "1d ago",
-                              isUnread: false,
-                            ),
+                            if (badgeHistory.isEmpty && practiceSessions.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8.0),
+                                child: Text(
+                                  "No recent notifications",
+                                  style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+                                ),
+                              )
+                            else ...[
+                              for (var badge in badgeHistory.reversed.take(2)) ...[
+                                _buildRecentNotifItem(
+                                  emojiIcon: "🏆",
+                                  title: "Badge Unlocked!",
+                                  subtitle: "Earned badge: ${badge['badgeId'] ?? 'Achievement'}",
+                                  time: badge['unlockedAt'] != null ? badge['unlockedAt'].toString().substring(0, 10) : 'Recent',
+                                  isUnread: false,
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                              for (var session in practiceSessions.reversed.take(2)) ...[
+                                _buildRecentNotifItem(
+                                  emojiIcon: "🎸",
+                                  title: "Practice Completed",
+                                  subtitle: "Accuracy: ${session['accuracy'] ?? 0}%",
+                                  time: session['date'] != null ? session['date'].toString().substring(0, 10) : 'Recent',
+                                  isUnread: false,
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ],
                             const SizedBox(height: 20),
                             _buildSectionHeader("PREFERENCES"),
                             const SizedBox(height: 10),
@@ -1274,7 +1176,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.of(context).pop();
-                          _showToast("Notification preferences saved.");
+                          _saveNotificationPreferencesToBackend();
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF06B6D4),
@@ -1502,7 +1404,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildMenuOption(
                 icon: LucideIcons.share_2,
                 label: "Share App",
-                onTap: _showShareDialog,
+                onTap: _shareAppAction,
               ),
               _buildMenuOption(
                 icon: LucideIcons.circle_question_mark,

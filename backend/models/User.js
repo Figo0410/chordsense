@@ -63,6 +63,19 @@ const userSchema = new mongoose.Schema({
     default: false
   },
 
+  // Settings & Notification Preferences
+  language: {
+    type: String,
+    default: 'English'
+  },
+  notificationPreferences: {
+    practiceReminders: { type: Boolean, default: true },
+    achievementsNotif: { type: Boolean, default: true },
+    weeklyReportNotif: { type: Boolean, default: false },
+    newSongsNotif: { type: Boolean, default: true },
+    streakAlertsNotif: { type: Boolean, default: true }
+  },
+
   // Array to track unlocked badge IDs for automatic point rewards
   unlockedBadges: { 
     type: [String], 
