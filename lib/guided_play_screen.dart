@@ -685,6 +685,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                   ),
                   child: Column(
                     children: [
+                      // Instructional-only chord diagram: shows target fingering, not detected string state.
                       Expanded(
                         child: CustomPaint(
                           painter: GuitarFretboardPainter(
@@ -708,7 +709,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                             ),
                           ),
                           Text(
-                            " = Open  •  ",
+                            " = Open (instruction)  •  ",
                             style: TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 12,
@@ -723,7 +724,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                             ),
                           ),
                           Text(
-                            " = Muted  •  Numbers = Fret Position",
+                            " = Do not play (instruction)  •  Numbers = Fret (instruction)",
                             style: TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 12,

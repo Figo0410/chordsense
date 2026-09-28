@@ -761,6 +761,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
       ),
       child: Column(
         children: [
+          // Instructional-only chord diagram: shows target fingering, not detected string state.
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -957,7 +958,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                 ),
               ),
               Text(
-                " = Open  •  ",
+                " = Open (instruction)  •  ",
                 style: TextStyle(color: Color(0xFF475569), fontSize: 10),
               ),
               Text(
@@ -969,7 +970,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                 ),
               ),
               Text(
-                " = Muted  •  Numbers = Fret Position",
+                " = Do not play (instruction)  •  Numbers = Fret (instruction)",
                 style: TextStyle(color: Color(0xFF475569), fontSize: 10),
               ),
             ],
