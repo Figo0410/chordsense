@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Song = require('../models/Song');
 const LearningPath = require('../models/LearningPath');
 const SongRequest = require('../models/SongRequest');
+const Setting = require('../models/Setting');
 
 exports.syncToCloud = async (req, res) => {
   if (!process.env.ATLAS_URI) {
@@ -17,6 +18,7 @@ exports.syncToCloud = async (req, res) => {
     const CloudSong = cloudConn.model('Song', Song.schema);
     const CloudLearningPath = cloudConn.model('LearningPath', LearningPath.schema, 'learning_paths');
     const CloudSongRequest = cloudConn.model('SongRequest', SongRequest.schema, 'songrequests');
+    const CloudSetting = cloudConn.model('Setting', Setting.schema, 'settings');
 
     // 1. Sync Users
     const unsyncedUsers = await User.find({ isSynced: false });
@@ -58,6 +60,13 @@ exports.syncToCloud = async (req, res) => {
       await sr.save();
     }
 
+    // 5. Sync Settings
+    const settings = await Setting.find({});
+    for (let s of settings) {
+      const data = s.toObject();
+      await CloudSetting.findOneAndUpdate({ key: s.key }, data, { upsert: true, returnDocument: 'after' });
+    }
+
     await cloudConn.close();
     res.status(200).json({ 
       success: true, 
@@ -66,7 +75,8 @@ exports.syncToCloud = async (req, res) => {
         users: unsyncedUsers.length,
         songs: unsyncedSongs.length,
         learningPaths: unsyncedPaths.length,
-        songRequests: unsyncedRequests.length
+        songRequests: unsyncedRequests.length,
+        settings: settings.length
       }
     });
 
