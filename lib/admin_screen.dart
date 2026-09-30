@@ -80,6 +80,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           "chords": l['chords'],
           "accuracy": "${l['passingAccuracy']}%",
           "points": "${l['rewardPoints']} pts",
+          "requiredPoints": l['requiredPoints'] ?? 0,
           "_id": l['_id'],
         }).toList();
         _songs = (results[3] as List).map((s) => {
@@ -123,6 +124,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final titleController = TextEditingController();
     final accuracyController = TextEditingController(text: "70");
     final pointsController = TextEditingController(text: "100");
+    final pointsRequiredController = TextEditingController(text: "0");
     List<String> selectedChords = ["C Major", "G Major"];
     final List<String> availableChords = [
       "C Major",
@@ -260,6 +262,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Required Points"),
+                    const SizedBox(height: 6),
+                    _buildDialogTextField(controller: pointsRequiredController),
                     const SizedBox(height: 24),
                     Row(
                       children: [
@@ -289,6 +295,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 "chords": selectedChords,
                                 "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
                                 "rewardPoints": int.tryParse(pointsController.text) ?? 100,
+                                "requiredPoints": int.tryParse(pointsRequiredController.text) ?? 0,
                                 "difficulty": "Beginner",
                                 "levelNumber": _levels.length + 1,
                               });
@@ -328,6 +335,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
     final pointsController = TextEditingController(
       text: level["points"].replaceAll(" pts", ""),
+    );
+    final pointsRequiredController = TextEditingController(
+      text: level["requiredPoints"].toString(),
     );
 
     showDialog(
@@ -457,6 +467,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 16),
+                    _buildDialogLabel("Required Points"),
+                    const SizedBox(height: 6),
+                    _buildDialogTextField(controller: pointsRequiredController),
                     const SizedBox(height: 24),
                     Row(
                       children: [
@@ -489,6 +503,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                   "chords": selectedChords,
                                   "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
                                   "rewardPoints": int.tryParse(pointsController.text) ?? 100,
+                                  "requiredPoints": int.tryParse(pointsRequiredController.text) ?? 0,
                                 });
                                 _fetchData();
                                 Navigator.pop(context);
@@ -1554,6 +1569,24 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         );
                       }).toList(),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const Text(
+                      "Required Points",
+                      style: TextStyle(color: Color(0xFF64748B), fontSize: 10),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "${level["requiredPoints"]}",
+                      style: const TextStyle(
+                        color: Color(0xFF38BDF8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
