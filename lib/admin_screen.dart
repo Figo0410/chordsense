@@ -1973,6 +1973,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   Future<void> _generateUserActivityPdf() async {
     try {
+      final validLevels = _users.map((u) => int.tryParse(u['level'] ?? '')).whereType<int>().toList();
+      final avgLevel = validLevels.isEmpty ? 0.0 : validLevels.reduce((a, b) => a + b) / validLevels.length;
+      final totalPoints = _users.isEmpty ? 0 : _users.map((u) => int.tryParse(u['points'] ?? '0') ?? 0).reduce((a, b) => a + b);
+      final totalSessions = _users.isEmpty ? 0 : _users.map((u) => u['sessions'] as int).reduce((a, b) => a + b);
+
       final pdf = pw.Document();
 
       pdf.addPage(
@@ -1984,6 +1989,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 pw.Text("ChordSense", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
                 pw.Text("Usage Report - User Activity", style: const pw.TextStyle(fontSize: 18)),
                 pw.SizedBox(height: 20),
+                pw.Table.fromTextArray(
+                  context: context,
+                  data: <List<String>>[
+                    ['Average User Level', 'Total Points', 'Total Sessions'],
+                    [avgLevel.toStringAsFixed(2), totalPoints.toString(), totalSessions.toString()],
+                  ],
+                ),
+                pw.SizedBox(height: 20),
+                pw.Text("User Activity", style: const pw.TextStyle(fontSize: 16)),
+                pw.SizedBox(height: 10),
                 pw.Table.fromTextArray(
                   context: context,
                   data: <List<String>>[
