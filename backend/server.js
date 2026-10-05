@@ -26,7 +26,7 @@ app.use('/api/songs', require('./routes/songRoutes'));
 app.use('/api/auth', require('./routes/authRoutes')); 
 
 // Connects your learning path endpoints
-app.use('/api/learning-path', require('./routes/learningPathRoutes'));
+app.use('/api/learning-path', require('./routes/LearningPathRoutes'));
 
 // Connects database sync endpoints
 app.use('/api/sync', require('./routes/syncRoutes'));
