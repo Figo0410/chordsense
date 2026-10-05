@@ -6,6 +6,12 @@ import 'dart:io';
 class ApiService {
   static String? _cachedBaseUrl;
 
+  static String get _prodApiUrl {
+    const url = String.fromEnvironment('API_BASE_URL');
+    if (url.isEmpty) return '';
+    return url.endsWith('/') ? url.substring(0, url.length - 1) : url;
+  }
+
   /// Candidate list of host IPs to scan dynamically (Add any common static IP here)
   static const List<String> _candidateHosts = [
     '192.168.254.114', // Physical phone Wi-Fi
@@ -16,6 +22,9 @@ class ApiService {
   ];
 
   static String get baseUrl {
+    final prodUrl = _prodApiUrl;
+    if (prodUrl.isNotEmpty) return prodUrl;
+
     if (_cachedBaseUrl != null) return _cachedBaseUrl!;
 
     if (kIsWeb) {
@@ -31,6 +40,12 @@ class ApiService {
   }
 
   static Future<String> initBaseUrl() async {
+    final prodUrl = _prodApiUrl;
+    if (prodUrl.isNotEmpty) {
+      _cachedBaseUrl = prodUrl;
+      return _cachedBaseUrl!;
+    }
+
     if (kIsWeb) {
       _cachedBaseUrl = 'http://localhost:5000/api';
       return _cachedBaseUrl!;
