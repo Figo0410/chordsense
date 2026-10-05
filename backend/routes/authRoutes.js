@@ -2,27 +2,18 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const LearningPath = require('../models/LearningPath');
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const { checkAndAwardBadges } = require('../utils/badgeHelper');
 
 // Temporary in-memory store for registration OTPs
 const pendingRegistrations = new Map();
 
-// Nodemailer Transporter
-if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-  console.error('Missing EMAIL_USER or EMAIL_PASS environment variables. Email functionality disabled.');
+// Initialize Resend
+if (!process.env.RESEND_API_KEY) {
+  console.error('Missing RESEND_API_KEY environment variable. Email functionality disabled.');
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  connectionTimeout: 10000, // 10 seconds
-  greetingTimeout: 10000,   // 10 seconds
-  socketTimeout: 30000,     // 30 seconds
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 1. STEP 1: SEND REGISTER OTP ROUTE
 router.post('/send-register-otp', async (req, res) => {
@@ -66,9 +57,14 @@ router.post('/send-register-otp', async (req, res) => {
       `,
     };
 
-    // Online/Offline Hybrid Check
+    // Send email using Resend
     try {
-      await transporter.sendMail(mailOptions);
+      await resend.emails.send({
+        from: 'onboarding@resend.dev',
+        to: email,
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+      });
       console.log(`[ONLINE] Verification email sent to ${email}`);
       return res.status(200).json({ message: 'Verification code sent to your email!' });
     } catch (mailError) {
@@ -297,9 +293,14 @@ router.post('/forgot-password', async (req, res) => {
       `,
     };
 
-    // Online/Offline Hybrid Check
+    // Send email using Resend
     try {
-      await transporter.sendMail(mailOptions);
+      await resend.emails.send({
+        from: 'onboarding@resend.dev',
+        to: user.email,
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+      });
       return res.json({ message: 'Reset code sent to your email!' });
     } catch (mailError) {
       console.error(`[ERROR] Failed to send password reset email to ${email}:`, mailError);
