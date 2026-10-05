@@ -9,12 +9,19 @@ const { checkAndAwardBadges } = require('../utils/badgeHelper');
 const pendingRegistrations = new Map();
 
 // Nodemailer Transporter
+if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+  console.error('Missing EMAIL_USER or EMAIL_PASS environment variables. Email functionality disabled.');
+}
+
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
-    user: 'joshuaroel0410@gmail.com', 
-    pass: 'nzbxxamicnbrncuc',   
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
+  connectionTimeout: 10000, // 10 seconds
+  greetingTimeout: 10000,   // 10 seconds
+  socketTimeout: 30000,     // 30 seconds
 });
 
 // 1. STEP 1: SEND REGISTER OTP ROUTE
@@ -65,12 +72,8 @@ router.post('/send-register-otp', async (req, res) => {
       console.log(`[ONLINE] Verification email sent to ${email}`);
       return res.status(200).json({ message: 'Verification code sent to your email!' });
     } catch (mailError) {
-      console.log('\n==================================================');
-      console.log(`[OFFLINE DEMO MODE] Could not send email via network.`);
-      console.log(`[OFFLINE DEMO MODE] Registration OTP for ${email}: [ ${otpCode} ]`);
-      console.log('==================================================\n');
-
-      return res.status(200).json({ message: 'Verification code generated! (Offline Mode)' });
+      console.error(`[ERROR] Failed to send verification email to ${email}:`, mailError);
+      return res.status(500).json({ message: 'Failed to send verification email. Please try again later.' });
     }
 
   } catch (error) {
@@ -299,12 +302,8 @@ router.post('/forgot-password', async (req, res) => {
       await transporter.sendMail(mailOptions);
       return res.json({ message: 'Reset code sent to your email!' });
     } catch (mailError) {
-      console.log('\n==================================================');
-      console.log(`[OFFLINE DEMO MODE] Could not send password reset email via network.`);
-      console.log(`[OFFLINE DEMO MODE] Reset Code for ${email}: [ ${resetToken} ]`);
-      console.log('==================================================\n');
-
-      return res.json({ message: 'Reset code generated! (Offline Mode)' });
+      console.error(`[ERROR] Failed to send password reset email to ${email}:`, mailError);
+      return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
     }
 
   } catch (error) {
