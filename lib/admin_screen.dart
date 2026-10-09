@@ -96,7 +96,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _requests = (results[4] as List).map((r) => {
           "title": r['songTitle'],
           "artist": r['artist'],
-          "user": r['userId']['username'],
+          "user": r['userId'] != null ? r['userId']['username'] : 'Unknown',
           "date": DateTime.parse(r['createdAt']).toString().substring(0, 10),
           "tag": r['trackType'],
           "status": r['status'],
@@ -1346,8 +1346,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // ==========================================
   Widget _buildUserManagementView() {
     final filteredUsers = _users.where((user) {
-      final name = user["name"]!.toLowerCase();
-      final email = user["email"]!.toLowerCase();
+      final name = (user["name"] as String? ?? 'User').toLowerCase();
+      final email = (user["email"] as String? ?? '').toLowerCase();
       final query = _searchQuery.toLowerCase();
       return name.contains(query) || email.contains(query);
     }).toList();
@@ -2222,7 +2222,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Expanded(
             flex: 3,
             child: Text(
-              user["name"]!,
+              user["name"] ?? 'User',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
@@ -2233,7 +2233,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Expanded(
             flex: 2,
             child: Text(
-              "Lvl ${user["level"]}",
+              "Lvl ${user["level"] ?? '1'}",
               style: const TextStyle(
                 color: Color(0xFF06B6D4),
                 fontSize: 13,
@@ -2244,7 +2244,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Expanded(
             flex: 2,
             child: Text(
-              user["points"]!,
+              (user["points"] ?? '0').toString(),
               style: const TextStyle(
                 color: Color(0xFFA855F7),
                 fontSize: 13,
@@ -2255,7 +2255,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           Expanded(
             flex: 2,
             child: Text(
-              "${user["sessions"]}",
+              (user["sessions"] ?? 0).toString(),
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 13,
@@ -2570,7 +2570,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
             child: Center(
               child: Text(
-                user["avatar"]!,
+                user["avatar"] ?? 'U',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -2587,7 +2587,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 Row(
                   children: [
                     Text(
-                      user["name"]!,
+                      user["name"] ?? 'User',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
@@ -2616,7 +2616,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  user["email"]!,
+                  user["email"] ?? '',
                   style: const TextStyle(
                     color: Color(0xFF64748B),
                     fontSize: 12,
@@ -2629,7 +2629,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                user["level"]!,
+                (user["level"] ?? '1').toString(),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 14,
@@ -2647,7 +2647,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                user["points"]!,
+                (user["points"] ?? '0').toString(),
                 style: const TextStyle(
                   color: Color(0xFF06B6D4),
                   fontSize: 14,
