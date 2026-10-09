@@ -1655,15 +1655,75 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           const SizedBox(width: 8),
           _buildOutlinedButton(
             text: "Delete",
-            onTap: () async {
-              try {
-                final userId = widget.userData?['_id'];
-                if (userId == null) return;
-                await ApiService.deleteLevel(userId, level['_id']);
-                _fetchData();
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to delete level: $e")));
-              }
+            onTap: () {
+              showDialog(
+                context: context,
+                barrierColor: Colors.black.withOpacity(0.7),
+                builder: (context) => Dialog(
+                  backgroundColor: const Color(0xFF0D1425),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: Color(0xFF1E293B)),
+                  ),
+                  child: Container(
+                    width: 380,
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Delete Level?",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Are you sure you want to delete Level ${level["num"]}: ${level["title"]}? This action cannot be undone.",
+                          style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
+                        ),
+                        const SizedBox(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: const Text("Cancel", style: TextStyle(color: Color(0xFF94A3B8))),
+                            ),
+                            const SizedBox(width: 12),
+                            _buildGradientButton(
+                              text: "Delete",
+                              onTap: () async {
+                                Navigator.pop(context);
+                                try {
+                                  final userId = widget.userData?['_id'];
+                                  if (userId == null) return;
+                                  await ApiService.deleteLevel(userId, level['_id']);
+                                  _fetchData();
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text("Level deleted successfully")),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text("Failed to delete level: $e")),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
             },
           ),
         ],
