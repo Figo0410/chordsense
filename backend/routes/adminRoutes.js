@@ -153,7 +153,7 @@ router.patch('/users/:id/status', async (req, res) => {
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { accountStatus },
-      { new: true }
+      { returnDocument: 'after' }
     );
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ message: 'User account status updated successfully', user });
@@ -185,7 +185,7 @@ router.put('/settings', async (req, res) => {
     const setting = await Setting.findOneAndUpdate(
       { key: 'system_settings' },
       { maintenanceMode },
-      { new: true, upsert: true }
+      { returnDocument: 'after', upsert: true }
     );
     res.json({ message: 'Settings updated successfully', maintenanceMode: setting.maintenanceMode });
   } catch (error) {

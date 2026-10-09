@@ -290,7 +290,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               return;
                             }
                             try {
-                              await ApiService.createLevel(widget.userData!['_id'], {
+                              final userId = widget.userData?['_id'];
+                              if (userId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("Error: User session invalid. Please log in again.")),
+                                );
+                                return;
+                              }
+                              await ApiService.createLevel(userId, {
                                 "title": titleController.text.trim(),
                                 "chords": selectedChords,
                                 "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
@@ -498,7 +505,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               }
 
                               try {
-                                await ApiService.updateLevel(widget.userData!['_id'], level['_id'], {
+                               final userId = widget.userData?['_id'];
+                               if (userId == null) return;
+                               await ApiService.updateLevel(userId, level['_id'], {
                                   "title": titleController.text.trim(),
                                   "chords": selectedChords,
                                   "passingAccuracy": int.tryParse(accuracyController.text) ?? 70,
@@ -771,7 +780,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               }
 
                               try {
-                                await ApiService.createSong(widget.userData!['_id'], {
+                              final userId = widget.userData?['_id'];
+                              if (userId == null) return;
+                              await ApiService.createSong(userId, {
                                   "title": titleController.text.trim(),
                                   "artist": artistController.text.trim(),
                                   "level": selectedDifficulty,
@@ -1035,7 +1046,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               }
 
                               try {
-                                await ApiService.updateSong(widget.userData!['_id'], song['_id'], {
+                               final userId = widget.userData?['_id'];
+                               if (userId == null) return;
+                               await ApiService.updateSong(userId, song['_id'], {
                                   "title": titleController.text.trim(),
                                   "artist": artistController.text.trim(),
                                   "level": selectedDifficulty,
@@ -1644,7 +1657,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             text: "Delete",
             onTap: () async {
               try {
-                await ApiService.deleteLevel(widget.userData!['_id'], level['_id']);
+                final userId = widget.userData?['_id'];
+                if (userId == null) return;
+                await ApiService.deleteLevel(userId, level['_id']);
                 _fetchData();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to delete level: $e")));
@@ -1810,7 +1825,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             text: "Delete",
             onTap: () async {
               try {
-                await ApiService.deleteSong(widget.userData!['_id'], song['_id']);
+                final userId = widget.userData?['_id'];
+                if (userId == null) return;
+                await ApiService.deleteSong(userId, song['_id']);
                 _fetchData();
               } catch (e) {
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to delete song: $e")));
@@ -1959,7 +1976,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               onTap: () async {
                 final newStatus = status == "In Progress" ? "Completed" : "In Progress";
                 try {
-                  await ApiService.updateRequestStatus(widget.userData!['_id'], request['_id'], newStatus);
+                  final userId = widget.userData?['_id'];
+                  if (userId == null) return;
+                  await ApiService.updateRequestStatus(userId, request['_id'], newStatus);
                   _fetchData();
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed to update status: $e")));
