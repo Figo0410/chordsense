@@ -7,7 +7,9 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
+import 'package:chordsense/data/chord_definitions.dart';
 import '../services/api_service.dart';
+
 
 class GuidedPlayScreen extends StatefulWidget {
   final Map<String, dynamic>? lessonData;
@@ -40,113 +42,6 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
   int _elapsedSeconds = 0;
 
   List<String> _targetChords = ['D', 'F#m', 'Bm', 'G'];
-
-  final Map<String, ChordDiagramData> _chordDiagrams = {
-    'C': ChordDiagramData(
-      stringStates: ['X', 'O', '', '', 'O', 'O'],
-      dots: [
-        FretDot(stringIndex: 1, fret: 3, finger: '3'),
-        FretDot(stringIndex: 2, fret: 2, finger: '2'),
-        FretDot(stringIndex: 4, fret: 1, finger: '1'),
-      ],
-    ),
-    'G': ChordDiagramData(
-      stringStates: ['', '', 'O', 'O', 'O', ''],
-      dots: [
-        FretDot(stringIndex: 0, fret: 3, finger: '2'),
-        FretDot(stringIndex: 1, fret: 2, finger: '1'),
-        FretDot(stringIndex: 5, fret: 3, finger: '3'),
-      ],
-    ),
-    'Am': ChordDiagramData(
-      stringStates: ['X', 'O', '', '', '', 'O'],
-      dots: [
-        FretDot(stringIndex: 2, fret: 2, finger: '2'),
-        FretDot(stringIndex: 3, fret: 2, finger: '3'),
-        FretDot(stringIndex: 4, fret: 1, finger: '1'),
-      ],
-    ),
-    'F': ChordDiagramData(
-      stringStates: ['X', 'X', '', '', '', ''],
-      dots: [
-        FretDot(stringIndex: 2, fret: 3, finger: '3'),
-        FretDot(stringIndex: 3, fret: 2, finger: '2'),
-        FretDot(stringIndex: 4, fret: 1, finger: '1'),
-        FretDot(stringIndex: 5, fret: 1, finger: '1'),
-      ],
-    ),
-    'Bm': ChordDiagramData(
-      stringStates: ['X', '', '', '', '', ''],
-      dots: [
-        FretDot(stringIndex: 1, fret: 2, finger: '1'),
-        FretDot(stringIndex: 2, fret: 4, finger: '3'),
-        FretDot(stringIndex: 3, fret: 4, finger: '4'),
-        FretDot(stringIndex: 4, fret: 3, finger: '2'),
-      ],
-    ),
-    'F#': ChordDiagramData(
-      stringStates: ['', '', '', '', '', ''],
-      dots: [
-        FretDot(stringIndex: 0, fret: 2, finger: '1'),
-        FretDot(stringIndex: 1, fret: 4, finger: '3'),
-        FretDot(stringIndex: 2, fret: 4, finger: '4'),
-        FretDot(stringIndex: 3, fret: 3, finger: '2'),
-      ],
-    ),
-    'F#m': ChordDiagramData(
-      stringStates: ['', '', '', '', '', ''],
-      dots: [
-        FretDot(stringIndex: 0, fret: 2, finger: '1'),
-        FretDot(stringIndex: 1, fret: 4, finger: '3'),
-        FretDot(stringIndex: 2, fret: 4, finger: '4'),
-        FretDot(stringIndex: 3, fret: 2, finger: '1'),
-        FretDot(stringIndex: 4, fret: 2, finger: '1'),
-        FretDot(stringIndex: 5, fret: 2, finger: '1'),
-      ],
-    ),
-    'A': ChordDiagramData(
-      stringStates: ['X', 'O', '', '', '', 'O'],
-      dots: [
-        FretDot(stringIndex: 2, fret: 2, finger: '1'),
-        FretDot(stringIndex: 3, fret: 2, finger: '2'),
-        FretDot(stringIndex: 4, fret: 2, finger: '3'),
-      ],
-    ),
-    'E': ChordDiagramData(
-      stringStates: ['O', '', '', '', 'O', 'O'],
-      dots: [
-        FretDot(stringIndex: 1, fret: 2, finger: '2'),
-        FretDot(stringIndex: 2, fret: 2, finger: '3'),
-        FretDot(stringIndex: 3, fret: 1, finger: '1'),
-      ],
-    ),
-    'D': ChordDiagramData(
-      stringStates: ['X', 'X', 'O', '', '', ''],
-      dots: [
-        FretDot(stringIndex: 3, fret: 2, finger: '1'),
-        FretDot(stringIndex: 4, fret: 3, finger: '3'),
-        FretDot(stringIndex: 5, fret: 2, finger: '2'),
-      ],
-    ),
-  };
-
-  final Map<String, List<double>> _chordFrequencies = {
-    'C': [130.81, 164.81, 196.00, 261.63, 329.63],
-    'C Major': [130.81, 164.81, 196.00, 261.63, 329.63],
-    'G': [98.00, 123.47, 146.83, 196.00, 246.94, 392.00],
-    'G Major': [98.00, 123.47, 146.83, 196.00, 246.94, 392.00],
-    'Am': [110.00, 164.81, 220.00, 277.18, 329.63],
-    'A Major': [110.00, 164.81, 220.00, 277.18, 329.63],
-    'A': [110.00, 164.81, 220.00, 277.18, 329.63],
-    'D Major': [146.83, 220.00, 293.66, 369.99],
-    'D': [146.83, 220.00, 293.66, 369.99],
-    'E Major': [82.41, 123.47, 164.81, 207.65, 246.94, 329.63],
-    'E': [82.41, 123.47, 164.81, 207.65, 246.94, 329.63],
-    'Bm': [123.47, 185.00, 246.94, 369.99, 493.88],
-    'F#': [92.50, 138.59, 185.00, 277.18, 369.99],
-    'F#m': [92.50, 138.59, 185.00, 277.18, 369.99],
-    'F': [174.61, 220.00, 261.63, 349.23, 698.46],
-  };
 
   @override
   void initState() {
@@ -291,11 +186,14 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
 
   void _verifyChordMatch(double pitch) {
     final String currentChord = _targetChords[_currentChordIndex];
-    List<double>? validFreqs = _chordFrequencies[currentChord];
+    final ChordDefinition? definition = allChordDefinitions.firstWhere(
+      (c) =>
+          c.name.toLowerCase() == currentChord.toLowerCase() ||
+          c.name.toLowerCase() == '$currentChord Major'.toLowerCase(),
+      orElse: () => allChordDefinitions.first,
+    );
 
-    if (validFreqs == null) {
-      validFreqs = _chordFrequencies['$currentChord Major'];
-    }
+    final List<double>? validFreqs = definition?.targetFrequencies;
 
     bool isMatch = false;
     if (validFreqs != null) {
@@ -306,6 +204,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
         }
       }
     }
+    // ... rest of match logic
 
     _feedbackResetTimer?.cancel();
 
@@ -689,9 +588,12 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                       Expanded(
                         child: CustomPaint(
                           painter: GuitarFretboardPainter(
-                            diagramData:
-                                _chordDiagrams[currentChord] ??
-                                _chordDiagrams['C']!,
+                            definition: allChordDefinitions.firstWhere(
+                              (c) =>
+                                  c.name.toLowerCase() ==
+                                  currentChord.toLowerCase(),
+                              orElse: () => allChordDefinitions.first,
+                            ),
                           ),
                           child: Container(),
                         ),
@@ -1001,9 +903,9 @@ class FretDot {
 }
 
 class GuitarFretboardPainter extends CustomPainter {
-  final ChordDiagramData diagramData;
+  final ChordDefinition definition;
 
-  GuitarFretboardPainter({required this.diagramData});
+  GuitarFretboardPainter({required this.definition});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1071,8 +973,8 @@ class GuitarFretboardPainter extends CustomPainter {
         Offset(x - (tpName.width / 2), topMargin + boardHeight + 8),
       );
 
-      if (i < diagramData.stringStates.length) {
-        String state = diagramData.stringStates[i];
+      if (i < definition.stringStates.length) {
+        String state = definition.stringStates[i];
         if (state == 'O') {
           final Paint openPaint = Paint()
             ..color = const Color(0xFF22C55E)
@@ -1096,9 +998,9 @@ class GuitarFretboardPainter extends CustomPainter {
       }
     }
 
-    for (var dot in diagramData.dots) {
-      double x = leftMargin + (dot.stringIndex * stringSpacing);
-      double y = topMargin + (dot.fret - 0.5) * fretSpacing;
+    for (var entry in definition.fingerFrets.entries) {
+      double x = leftMargin + (entry.key * stringSpacing);
+      double y = topMargin + (entry.value - 0.5) * fretSpacing;
 
       final Paint dotPaint = Paint()
         ..shader = const LinearGradient(
@@ -1109,7 +1011,7 @@ class GuitarFretboardPainter extends CustomPainter {
 
       final TextPainter tpFinger = TextPainter(
         text: TextSpan(
-          text: dot.finger,
+          text: definition.fingerLabels[entry.key] ?? "1",
           style: const TextStyle(
             color: Colors.white,
             fontSize: 12,
@@ -1127,6 +1029,6 @@ class GuitarFretboardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant GuitarFretboardPainter oldDelegate) {
-    return oldDelegate.diagramData != diagramData;
+    return oldDelegate.definition != definition;
   }
 }

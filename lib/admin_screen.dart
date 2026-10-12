@@ -133,7 +133,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       "A Major",
       "E Major",
       "Bm",
-      "F#m"
+      "F#m",
+      "A Minor",
+      "D Minor",
+      "E Minor",
+      "F# Major"
     ];
 
     showDialog(
@@ -335,7 +339,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       "A Major",
       "E Major",
       "Bm",
-      "F#m"
+      "F#m",
+      "A Minor",
+      "D Minor",
+      "E Minor",
+      "F# Major"
     ];
     final accuracyController = TextEditingController(
       text: level["accuracy"].replaceAll("%", ""),
@@ -549,7 +557,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       "A Major",
       "E Major",
       "Bm",
-      "F#m"
+      "F#m",
+      "A Minor",
+      "D Minor",
+      "E Minor",
+      "F# Major"
     ];
 
     showDialog(
@@ -827,7 +839,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       "A Major",
       "E Major",
       "Bm",
-      "F#m"
+      "F#m",
+      "A Minor",
+      "D Minor",
+      "E Minor",
+      "F# Major"
     ];
 
     showDialog(

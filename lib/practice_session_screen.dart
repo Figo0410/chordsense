@@ -6,25 +6,8 @@ import 'package:flutter_lucide/flutter_lucide.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:chordsense/data/chord_definitions.dart';
 import 'services/api_service.dart';
-
-class ChordConfig {
-  final String name;
-  final String difficulty;
-  final Map<int, int> fingerFrets;
-  final Map<int, String> fingerLabels;
-  final List<int> openStrings;
-  final List<double> targetFrequencies;
-
-  ChordConfig({
-    required this.name,
-    required this.difficulty,
-    required this.fingerFrets,
-    required this.fingerLabels,
-    required this.openStrings,
-    required this.targetFrequencies,
-  });
-}
 
 class PracticeSessionScreen extends StatefulWidget {
   final String initialChord;
@@ -53,67 +36,8 @@ class PracticeSessionScreen extends StatefulWidget {
 }
 
 class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
-  final List<ChordConfig> _knownChords = [
-    ChordConfig(
-      name: "C Major",
-      difficulty: "Easy",
-      fingerFrets: {1: 3, 2: 2, 4: 1},
-      fingerLabels: {1: "3", 2: "2", 4: "1"},
-      openStrings: [1, 3, 5],
-      targetFrequencies: [130.81, 164.81, 196.00, 261.63, 329.63],
-    ),
-    ChordConfig(
-      name: "G Major",
-      difficulty: "Easy",
-      fingerFrets: {0: 3, 1: 2, 5: 3},
-      fingerLabels: {0: "3", 1: "2", 5: "4"},
-      openStrings: [2, 3, 4],
-      targetFrequencies: [98.00, 123.47, 146.83, 196.00, 246.94, 392.00],
-    ),
-    ChordConfig(
-      name: "D Major",
-      difficulty: "Easy",
-      fingerFrets: {3: 2, 4: 3, 5: 2},
-      fingerLabels: {3: "1", 4: "3", 5: "2"},
-      openStrings: [2],
-      targetFrequencies: [146.83, 220.00, 293.66, 369.99],
-    ),
-    ChordConfig(
-      name: "A Major",
-      difficulty: "Easy",
-      fingerFrets: {2: 2, 3: 2, 4: 2},
-      fingerLabels: {2: "1", 3: "2", 4: "3"},
-      openStrings: [1, 5],
-      targetFrequencies: [110.00, 164.81, 220.00, 277.18, 329.63],
-    ),
-    ChordConfig(
-      name: "A Minor",
-      difficulty: "Easy",
-      fingerFrets: {2: 2, 3: 2, 4: 1},
-      fingerLabels: {2: "2", 3: "3", 4: "1"},
-      openStrings: [1, 5],
-      targetFrequencies: [110.00, 164.81, 220.00, 261.63, 329.63],
-    ),
-    ChordConfig(
-      name: "E Minor",
-      difficulty: "Easy",
-      fingerFrets: {1: 2, 2: 2},
-      fingerLabels: {1: "2", 2: "3"},
-      openStrings: [0, 3, 4, 5],
-      targetFrequencies: [82.41, 123.47, 164.81, 196.00, 246.94, 329.63],
-    ),
-    ChordConfig(
-      name: "D Minor",
-      difficulty: "Easy",
-      fingerFrets: {3: 2, 4: 3, 5: 1},
-      fingerLabels: {3: "2", 4: "3", 5: "1"},
-      openStrings: [2],
-      targetFrequencies: [146.83, 220.00, 293.66, 349.23],
-    ),
-  ];
-
-  late List<ChordConfig> _chords;
-  late ChordConfig _currentChord;
+  late List<ChordDefinition> _chords;
+  late ChordDefinition _currentChord;
   int _currentChordIndex = 0;
 
   final FlutterAudioCapture _audioCapture = FlutterAudioCapture();
@@ -155,14 +79,14 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
     }
 
     _chords = targetChordNames.map((chordName) {
-      return _knownChords.firstWhere(
+      return allChordDefinitions.firstWhere(
         (c) => c.name.toLowerCase() == chordName.toLowerCase(),
-        orElse: () => ChordConfig(
+        orElse: () => ChordDefinition(
           name: chordName,
-          difficulty: "Easy",
           fingerFrets: {1: 2, 2: 2},
           fingerLabels: {1: "1", 2: "2"},
           openStrings: [0, 3, 4, 5],
+          stringStates: ['O', 'O', 'O', 'O', 'O', 'O'],
           targetFrequencies: [110.00, 164.81, 220.00, 261.63, 329.63],
         ),
       );
