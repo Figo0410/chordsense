@@ -74,7 +74,7 @@ const songSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Pre-save middleware to synchronize level/difficulty and array/string chords
-songSchema.pre('save', function(next) {
+songSchema.pre('save', function() {
   if (this.difficulty && !this.level) {
     this.level = this.difficulty;
   } else if (this.level && !this.difficulty) {
@@ -86,7 +86,6 @@ songSchema.pre('save', function(next) {
   } else if (typeof this.chords === 'string') {
     this.chordList = this.chords.split(',').map(c => c.trim()).filter(Boolean);
   }
-  next();
 });
 
 module.exports = mongoose.model('Song', songSchema);
