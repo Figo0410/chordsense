@@ -4,9 +4,11 @@ const User = require('../models/User');
 const LearningPath = require('../models/LearningPath');
 const { Resend } = require('resend');
 const { checkAndAwardBadges } = require('../utils/badgeHelper');
+const bcrypt = require('bcrypt');
 
 // Temporary in-memory store for registration OTPs
 const pendingRegistrations = new Map();
+
 
 // Initialize Resend
 if (!process.env.RESEND_API_KEY) {
@@ -231,12 +233,30 @@ router.post('/login', async (req, res) => {
   try {
     const user = await User.findOne({ username });
 
-    if (!user || user.password !== password) {
+    if (!user) {
       return res.status(401).json({ message: 'Invalid username or password' });
     }
 
     if (user.accountStatus === 'Disabled') {
       return res.status(403).json({ message: 'Account is disabled. Please contact the administrator.' });
+    }
+
+    // Check if stored password is a bcrypt hash
+    const isHash = user.password.startsWith('$2a$') || user.password.startsWith('$2b$') || user.password.startsWith('$2y$');
+
+    if (isHash) {
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Invalid username or password' });
+        }
+    } else {
+        // Plaintext comparison and automatic upgrade
+        if (user.password !== password) {
+            return res.status(401).json({ message: 'Invalid username or password' });
+        }
+        // Upgrade: update the password to trigger the pre-save hook that hashes it
+        user.password = password; 
+        await user.save();
     }
 
     res.json({
