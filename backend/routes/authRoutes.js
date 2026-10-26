@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const LearningPath = require('../models/LearningPath');
-const { Resend } = require('resend');
+const { sendEmail } = require('../utils/emailHelper');
 const { checkAndAwardBadges } = require('../utils/badgeHelper');
 const bcrypt = require('bcrypt');
 
@@ -16,12 +16,10 @@ const isPasswordValid = (password) => {
 const pendingRegistrations = new Map();
 
 
-// Initialize Resend
-if (!process.env.RESEND_API_KEY) {
-  console.error('Missing RESEND_API_KEY environment variable. Email functionality disabled.');
+// Initialize Brevo Check
+if (!process.env.BREVO_API_KEY) {
+  console.error('Missing BREVO_API_KEY environment variable. Email functionality will fail.');
 }
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 1. STEP 1: SEND REGISTER OTP ROUTE
 router.post('/send-register-otp', async (req, res) => {
@@ -56,7 +54,6 @@ router.post('/send-register-otp', async (req, res) => {
     });
 
     const mailOptions = {
-      from: '"ChordSense Support" <joshuaroel0410@gmail.com>',
       to: email,
       subject: 'Account Verification Code - ChordSense',
       html: `
@@ -69,14 +66,9 @@ router.post('/send-register-otp', async (req, res) => {
       `,
     };
 
-    // Send email using Resend
+    // Send email using Brevo
     try {
-      await resend.emails.send({
-        from: 'onboarding@resend.dev',
-        to: email,
-        subject: mailOptions.subject,
-        html: mailOptions.html,
-      });
+      await sendEmail(mailOptions);
       console.log(`[ONLINE] Verification email sent to ${email}`);
       return res.status(200).json({ message: 'Verification code sent to your email!' });
     } catch (mailError) {
@@ -314,7 +306,6 @@ router.post('/forgot-password', async (req, res) => {
     await user.save();
 
     const mailOptions = {
-      from: '"ChordSense Support" <joshuaroel0410@gmail.com>',
       to: user.email,
       subject: 'Password Reset Code - ChordSense',
       html: `
@@ -327,14 +318,9 @@ router.post('/forgot-password', async (req, res) => {
       `,
     };
 
-    // Send email using Resend
+    // Send email using Brevo
     try {
-      await resend.emails.send({
-        from: 'onboarding@resend.dev',
-        to: user.email,
-        subject: mailOptions.subject,
-        html: mailOptions.html,
-      });
+      await sendEmail(mailOptions);
       return res.json({ message: 'Reset code sent to your email!' });
     } catch (mailError) {
       console.error(`[ERROR] Failed to send password reset email to ${email}:`, mailError);
