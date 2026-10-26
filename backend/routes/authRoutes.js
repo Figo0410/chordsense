@@ -6,6 +6,12 @@ const { Resend } = require('resend');
 const { checkAndAwardBadges } = require('../utils/badgeHelper');
 const bcrypt = require('bcrypt');
 
+const isPasswordValid = (password) => {
+  // 1 uppercase, 1 number, 1 special, min 8 chars
+  const regex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/;
+  return regex.test(password);
+};
+
 // Temporary in-memory store for registration OTPs
 const pendingRegistrations = new Map();
 
@@ -20,6 +26,10 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // 1. STEP 1: SEND REGISTER OTP ROUTE
 router.post('/send-register-otp', async (req, res) => {
   const { username, email, password } = req.body;
+
+  if (!isPasswordValid(password)) {
+    return res.status(400).json({ message: 'Password does not meet complexity requirements.' });
+  }
 
   try {
     const existingUser = await User.findOne({ 
@@ -158,6 +168,10 @@ router.post('/verify-register-otp', async (req, res) => {
 // 3. LEGACY REGISTER ROUTE
 router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
+
+  if (!isPasswordValid(password)) {
+    return res.status(400).json({ message: 'Password does not meet complexity requirements.' });
+  }
 
   try {
     const existingUser = await User.findOne({ 
@@ -335,6 +349,10 @@ router.post('/forgot-password', async (req, res) => {
 // 6. RESET PASSWORD ROUTE
 router.post('/reset-password', async (req, res) => {
   const { email, resetToken, newPassword } = req.body;
+
+  if (!isPasswordValid(newPassword)) {
+    return res.status(400).json({ message: 'Password does not meet complexity requirements.' });
+  }
 
   try {
     const user = await User.findOne({

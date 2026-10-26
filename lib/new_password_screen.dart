@@ -25,6 +25,11 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
       return;
     }
 
+    if (!_isPasswordValid(newPassword)) {
+      _showSnackBar("Password must contain at least 1 uppercase letter, 1 number, and 1 special character (e.g., !, @, #, \$, %, &)");
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -53,6 +58,12 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
         backgroundColor: const Color(0xFF9333EA),
       ),
     );
+  }
+
+  bool _isPasswordValid(String password) {
+    // 1 uppercase, 1 number, 1 special, min 8 chars
+    final regex = RegExp(r'^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$');
+    return regex.hasMatch(password);
   }
 
   @override
