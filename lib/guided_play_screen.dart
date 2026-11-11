@@ -598,6 +598,15 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                           child: Container(),
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Strum: Single Down Strum",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -611,7 +620,7 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                             ),
                           ),
                           Text(
-                            " = Open (instruction)  •  ",
+                            " = Open  •  ",
                             style: TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 12,
@@ -626,7 +635,14 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
                             ),
                           ),
                           Text(
-                            " = Do not play (instruction)  •  Numbers = Fret (instruction)",
+                            " = Mute  •  ",
+                            style: TextStyle(
+                              color: Color(0xFF94A3B8),
+                              fontSize: 12,
+                            ),
+                          ),
+                          Text(
+                            "Number = Fret",
                             style: TextStyle(
                               color: Color(0xFF94A3B8),
                               fontSize: 12,
@@ -1024,6 +1040,29 @@ class GuitarFretboardPainter extends CustomPainter {
         canvas,
         Offset(x - (tpFinger.width / 2), y - (tpFinger.height / 2)),
       );
+
+      final TextPainter tpFret = TextPainter(
+        text: TextSpan(
+          text: '${entry.value}${_getFretSuffix(entry.value)} fret',
+          style: const TextStyle(
+            color: Color(0xFF64748B),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tpFret.paint(canvas, Offset(x + 16, y - (tpFret.height / 2)));
+    }
+  }
+
+  String _getFretSuffix(int fret) {
+    if (fret >= 11 && fret <= 13) return 'th';
+    switch (fret % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
     }
   }
 

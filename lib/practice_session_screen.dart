@@ -758,7 +758,7 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                         }),
                       ),
                     ),
-                    ..._currentChord.fingerFrets.entries.map((entry) {
+                    ..._currentChord.fingerFrets.entries.expand((entry) {
                       final stringIndex = entry.key;
                       final fretNumber = entry.value;
                       final label =
@@ -773,135 +773,113 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                           (fretSpacing / 2) -
                           14;
 
-                      return Positioned(
-                        left: leftPos,
-                        top: topPos,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF06B6D4), Color(0xFF8B5CF6)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFF8B5CF6,
-                                ).withValues(alpha: 0.5),
-                                blurRadius: 8,
+                      return [
+                        Positioned(
+                          left: leftPos,
+                          top: topPos,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF06B6D4), Color(0xFF8B5CF6)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              label,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFF8B5CF6,
+                                  ).withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      );
+                        Positioned(
+                          left: leftPos + 30,
+                          top: topPos + 6,
+                          child: Text(
+                            '${fretNumber}${_getFretSuffix(fretNumber)} fret',
+                            style: const TextStyle(
+                              color: Color(0xFF64748B),
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ];
                     }),
                   ],
                 );
               },
             ),
           ),
+          const SizedBox(height: 8),
+          const Text(
+            "Strum: Single Down Strum",
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 12),
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
               children: [
-                Text(
-                  "E",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("O", style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(" = Open", style: TextStyle(color: Color(0xFF475569), fontSize: 10)),
+                  ],
                 ),
-                Text(
-                  "A",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("X", style: TextStyle(color: Color(0xFFEF4444), fontSize: 11, fontWeight: FontWeight.bold)),
+                    Text(" = Mute", style: TextStyle(color: Color(0xFF475569), fontSize: 10)),
+                  ],
                 ),
-                Text(
-                  "D",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "G",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "B",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "E",
-                  style: TextStyle(
-                    color: Color(0xFF64748B),
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text("Number = Fret", style: TextStyle(color: Color(0xFF475569), fontSize: 10)),
+                  ],
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "O",
-                style: TextStyle(
-                  color: Color(0xFF10B981),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                " = Open (instruction)  •  ",
-                style: TextStyle(color: Color(0xFF475569), fontSize: 10),
-              ),
-              Text(
-                "X",
-                style: TextStyle(
-                  color: Color(0xFFEF4444),
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                " = Do not play (instruction)  •  Numbers = Fret (instruction)",
-                style: TextStyle(color: Color(0xFF475569), fontSize: 10),
-              ),
-            ],
-          ),
         ],
       ),
     );
+  }
+
+  String _getFretSuffix(int fret) {
+    if (fret >= 11 && fret <= 13) return 'th';
+    switch (fret % 10) {
+      case 1: return 'st';
+      case 2: return 'nd';
+      case 3: return 'rd';
+      default: return 'th';
+    }
   }
 
   Widget _buildBottomActionArea() {
