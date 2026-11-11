@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_lucide/flutter_lucide.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_audio_capture/flutter_audio_capture.dart';
 import 'package:pitch_detector_dart/pitch_detector.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -39,6 +40,9 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
   late List<ChordDefinition> _chords;
   late ChordDefinition _currentChord;
   int _currentChordIndex = 0;
+
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  bool _isPlayingSound = false;
 
   final FlutterAudioCapture _audioCapture = FlutterAudioCapture();
   late PitchDetector _pitchDetector;
@@ -100,8 +104,23 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
   void dispose() {
     _stopListeningSync();
     _countdownTimer?.cancel();
+    _audioPlayer.dispose();
     super.dispose();
   }
+
+  Future<void> _playChordAudio(String chordName) async {
+    try {
+      setState(() => _isPlayingSound = true);
+      String audioFile = 'audio/${chordName.replaceAll(' ', '')}.mp3';
+      await _audioPlayer.play(AssetSource(audioFile));
+    } catch (e) {
+      debugPrint("Error playing audio: $e");
+    } finally {
+      if (mounted) setState(() => _isPlayingSound = false);
+    }
+  }
+
+  // ... (rest of the class)
 
   void _startPracticeFlow() async {
     var status = await Permission.microphone.request();
@@ -615,6 +634,22 @@ class _PracticeSessionScreenState extends State<PracticeSessionScreen> {
                     color: Colors.white,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _isPlayingSound
+                      ? null
+                      : () => _playChordAudio(_currentChord.name),
+                  icon: const Icon(LucideIcons.volume_2, size: 16),
+                  label: const Text("Listen to chord"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF38BDF8),
+                    side: const BorderSide(color: Color(0xFF38BDF8)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
