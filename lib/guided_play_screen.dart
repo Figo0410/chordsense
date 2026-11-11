@@ -291,14 +291,38 @@ class _GuidedPlayScreenState extends State<GuidedPlayScreen> {
   }
 
   Future<void> _playChordAudio(String chordName) async {
+    if (_isPlayingSound) return; // Prevent overlapping playback
+
+    setState(() => _isPlayingSound = true);
+    
+    // Pause microphone input
+    bool wasListening = _isListening;
+    if (_isListening) {
+      await _stopMicListening();
+    }
+
     try {
-      setState(() => _isPlayingSound = true);
       String audioFile = 'audio/${chordName.replaceAll(' ', '')}.mp3';
+      
+      // Setup completion listener
+      Completer<void> completionCompleter = Completer<void>();
+      _audioPlayer.onPlayerComplete.listen((event) {
+        completionCompleter.complete();
+      });
+
       await _audioPlayer.play(AssetSource(audioFile));
+      await completionCompleter.future;
+
     } catch (e) {
       debugPrint("Error playing audio: $e");
     } finally {
-      if (mounted) setState(() => _isPlayingSound = false);
+      if (mounted) {
+        setState(() => _isPlayingSound = false);
+        // Resume microphone input if it was active
+        if (wasListening) {
+          _startMicListening();
+        }
+      }
     }
   }
 
